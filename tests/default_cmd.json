@@ -1,0 +1,24 @@
+{
+    "id": "",
+    "logicalId": "",
+    "generic_type": null,
+    "eqType": "jMQTT",
+    "name": "",
+    "order": "0",
+    "type": "info",
+    "subType": "string",
+    "eqLogic_id": "",
+    "isHistorized": "0",
+    "unite": "",
+    "configuration": {
+        "topic": "",
+        "parseJson": "0",
+        "value": "",
+        "jParent": -1,
+        "jOrder": -1
+    },
+    "template": null,
+    "value": null,
+    "isVisible": "1",
+    "currentValue": ""
+}

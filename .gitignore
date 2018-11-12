@@ -1,0 +1,9 @@
+vendor/
+/composer.lock
+/composer.phar
+
+bootstrap/
+!bootstrap/bootstrap_template.php
+
+testsuite/
+!testsuite/phpunit.xml

@@ -1,0 +1,34 @@
+{
+    "jsonrpc": "2.0",
+    "id": "13",
+    "result": [
+        {
+            "id": "198",
+            "logicalId": "boiler\/status",
+            "generic_type": null,
+            "eqType": "jMQTT",
+            "name": "status",
+            "order": "0",
+            "type": "info",
+            "subType": "string",
+            "eqLogic_id": "162",
+            "isHistorized": "0",
+            "unite": "",
+            "configuration": {
+                "topic": "boiler\/status",
+                "parseJson": 0,
+                "prevParseJson": 0,
+                "value": "offline",
+                "jParent": -1,
+                "jOrder": -1
+            },
+            "template": null,
+            "display": null,
+            "html": null,
+            "value": null,
+            "isVisible": "1",
+            "alert": null,
+            "currentValue": "offline"
+        }
+    ]
+}

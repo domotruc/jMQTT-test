@@ -1,0 +1,174 @@
+{
+	"mqtt": {
+		"host": "localhost",
+		"port": 1883,
+		"username": "",
+		"password": ""
+	},
+	"misc": {
+		"#": "time interval between each publication",
+		"time_interval": 4,
+		"#": "logging level: 0=notset, 100=debug, 200=info, 300=warning, 400=error",
+		"logging_level": 200,
+		"#": "to log in a file",
+		"#": "if missing or empty string, logs to the console",
+		"logging_file": "/tmp/ebusd.log"
+	},
+	"messages": {
+		"s1a": {
+			"topic": "ebusd/global/uptime",
+			"payload": {
+				"func": "linear",
+				"param": {
+					"cur": 94000,
+					"delta": 4
+				}
+			}
+		},
+		"s1b": {
+			"topic": "ebusd/broadcast/vdatetime",
+			"payload": {
+				"time": {
+					"value": {
+						"func": "date",
+						"param": {
+							"fmt": "H:i:s"
+						}
+					}
+				},
+				"date": {
+					"value": {
+						"func": "date",
+						"param": {
+							"fmt": "d.m.Y"
+						}
+					}
+				}
+			}
+		},
+		"s2": {
+			"topic": "ebusd/bai/Status01",
+			"payload": {
+				"0": {
+					"name": "temp1",
+					"value": {
+						"func": "randWalk",
+						"param": {
+							"cur": 42,
+							"rand": 0.3
+						}
+					}
+				},
+				"1": {
+					"name": "temp2",
+					"value": {
+						"func": "randWalk",
+						"param": {
+							"cur": 42,
+							"rand": 0.3
+						}
+					}
+				},
+				"2": {
+					"name": "temp3",
+					"value": "null"
+				},
+				"3": {
+					"name": "temp4",
+					"value": "null"
+				},
+				"4": {
+					"name": "temp5",
+					"value": {
+						"func": "randWalk",
+						"param": {
+							"cur": 50,
+							"rand": 0.3
+						}
+					}
+				},
+				"5": {
+					"name": "burnerstate",
+					"value": {
+						"func": "randChoice",
+						"param": [
+							"on",
+							"off"
+						]
+					}
+				}
+			}
+		},
+		"a1": {
+			"topic": "ebusd/bai/WP",
+			"payload": {
+				"onoff": {
+					"value": {
+						"func": "randChoice",
+						"param": [
+							"on",
+							"off"
+						]
+					}
+				}
+			}
+		},
+		"a2": {
+			"topic": "ebusd/bai/CirPump",
+			"payload": {
+				"onoff": {
+					"value": {
+						"func": "randChoice",
+						"param": [
+							"on",
+							"off"
+						]
+					}
+				}
+			}
+		},
+		"a3": {
+			"topic": "ebusd/bai/WPPWMPower",
+			"payload": {
+				"percent0": {
+					"value": {
+						"func": "randWalk",
+						"param": {
+							"cur": 50,
+							"rand": 0.3,
+							"min": 0,
+							"max": 100
+						}
+					}
+				}
+			}
+		},
+		"a4": {
+			"topic": "ebusd/bai/ModulationTemp",
+			"payload": {
+				"0": {
+					"name": "",
+					"value": {
+                        "func": "randWalk",
+                        "param": {
+                            "cur": 17,
+                            "rand": 0.1
+                        }
+                    }
+				}
+			}
+		},
+		"a5": {
+			"topic": "ebusd/bai/PositionValveSet",
+            "payload": {
+                "func": "nextChoice",
+                "#": "last: index of the last published element (optional)",
+                "param": {
+                    "list": [
+                        "1", "2", "3", "4", "5"
+                    ]
+                }
+            }
+		}
+	}
+}

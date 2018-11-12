@@ -1,0 +1,18 @@
+{
+    "id": "",
+    "name": "",
+    "logicalId": "",
+    "generic_type": null,
+    "object_id": null,
+    "eqType_name": "jMQTT",
+    "eqReal_id": null,
+    "isVisible": "0",
+    "isEnable": "1",
+    "configuration": {
+        "topic": "",
+        "auto_add_cmd": "1",
+        "Qos": "1"
+    },
+    "order": "0",
+    "comment": null
+}
