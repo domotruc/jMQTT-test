@@ -1,0 +1,11 @@
+<phpunit bootstrap="../bootstrap/bootstrap_template.php">
+  <testsuites>
+    <testsuite name="All">
+      <file>tests/InstallTest.php</file>
+      <file>tests/FirstEqptTest.php</file>
+      <file>tests/LongCmdNameTest.php</file>
+      <file>tests/RemoveEqptTest.php</file>
+      <file>tests/UninstallTest.php</file>
+    </testsuite>
+  </testsuites>
+</phpunit>
