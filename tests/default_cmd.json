@@ -1,7 +1,6 @@
 {
     "id": "",
     "logicalId": "",
-    "generic_type": null,
     "eqType": "jMQTT",
     "name": "",
     "order": "0",
@@ -17,7 +16,6 @@
         "jParent": -1,
         "jOrder": -1
     },
-    "template": null,
     "value": null,
     "isVisible": "1",
     "currentValue": ""

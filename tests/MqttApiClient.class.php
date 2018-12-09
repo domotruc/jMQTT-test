@@ -1,6 +1,6 @@
 <?php
 
-require_once('vendor/autoload.php');
+require_once (__DIR__ . '/../vendor/autoload.php');
 
 use Bluerhinos\phpMQTT;
 
@@ -43,6 +43,12 @@ class MqttApiClient {
      * @var string
      */
     private $previous_resp = null;
+    
+    
+    /**
+     * @var string
+     */
+    private $jeedom_version;
     
     /**
      * Create a mosquitto client and connect to the broker
@@ -99,6 +105,25 @@ class MqttApiClient {
      * @return NULL|string
      */
     public function sendRequest($method, array $params=null) {
+        
+        // Conversion between 3.2 and 3.3 version
+        $conv = array('object::all' => 'jeeObject::all');
+        
+        if (array_key_exists($method, $conv)) {
+            if ($this->getJeedomVersion() == '3.3')
+                $method = $conv[$method];
+        }
+        
+        return $this->processRequest($method, $params);
+    }
+    
+    /**
+     * @param string $method
+     * @param array|null $params request parameters (or null or absent if no parameters)
+     * @return NULL|string
+     */
+    private function processRequest($method, array $params=null) {
+        
         $req = array('method' => $method,
                      'id' => strval($this->req_id++),
                      'topic' => self::S_RET_TOPIC);
@@ -129,5 +154,13 @@ class MqttApiClient {
         }
                     
         return $this->response;
+    }
+    
+    public function getJeedomVersion() {
+        if (! isset($this->jeedom_version)) {
+            $resp = $this->processRequest('version');
+            $this->jeedom_version = substr($resp['result'], 0, 3);
+        }
+        return $this->jeedom_version;
     }
 }

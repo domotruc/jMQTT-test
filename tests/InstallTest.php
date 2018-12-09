@@ -3,7 +3,7 @@
 use Facebook\WebDriver\WebDriverBy as By;
 use Facebook\WebDriver\WebDriverSelect as Select;
 
-require_once('vendor/autoload.php');
+require_once (__DIR__ . '/../vendor/autoload.php');
 include_once 'MqttTestCase.php';
 
 class InstallTest extends MqttTestCase {
@@ -55,6 +55,7 @@ class InstallTest extends MqttTestCase {
         
         // Log in debug mode
         $this->waitElemIsClickable(By::xpath("//input[@data-l2key='100']"))->click();
+        self::$wd->findElement(By::xpath("//a[@id='bt_savePluginLogConfig']"))->click();
         
         $dep = self::$wd->findElement(By::xpath("//td[@class='dependancyState']//descendant::span"))->getText();
         if ($dep == "NOK") {

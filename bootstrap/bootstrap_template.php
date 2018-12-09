@@ -22,5 +22,6 @@ $_ENV['mosquitto_port'] = 1883;
 
 // ssh connexion to jeedom host (to uninstall plugin dependancies)
 $_ENV['ssh_host'] = 'your_jeedom_host';
+$_ENV['ssh_port'] = '22';
 $_ENV['ssh_username'] = '';
 $_ENV['ssh_password'] = '';

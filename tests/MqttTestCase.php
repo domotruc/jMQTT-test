@@ -1,6 +1,6 @@
 <?php
 
-require_once ('vendor/autoload.php');
+require_once (__DIR__ . '/../vendor/autoload.php');
 include_once 'MqttApiClient.class.php';
 include_once 'PluginTestCase.php';
 
@@ -61,6 +61,9 @@ class MqttTestCase extends PluginTestCase {
             $this->assertCount(count($list), $els, 'Equipment number is incorrect');
 
             $els_name = self::$wd->findElements(By::xpath("//div[contains(@class,'eqLogicDisplayCard')]//center//strong"));
+            usort($els_name, function($a, $b) {
+                return MqttEqpts::my_strcmp(trim($a->getAttribute("innerText")), trim($b->getAttribute("innerText")));
+            });
             
             foreach ($list as $key => $prop) {
 
@@ -137,7 +140,7 @@ class MqttTestCase extends PluginTestCase {
             $el->click();
         if ( ! $el->isSelected() && $is_enabled)
             $el->click();
-        self::$wd->findElement(By::xpath("//a[@data-action='save']"))->click();    
+        self::$wd->findElement(By::xpath("//a[@data-action='save']"))->click();
     }
     
     public function waitEquipmentInclusion(string $name) {

@@ -1,6 +1,6 @@
 <?php
 
-require_once('vendor/autoload.php');
+require_once (__DIR__ . '/../vendor/autoload.php');
 include_once 'JeedomObjects.class.php';
 
 use Bluerhinos\phpMQTT;
@@ -43,6 +43,11 @@ class MqttEqpts {
         }
     }
 
+    public static function my_strcmp($a, $b) {
+        //return strnatcasecmp(str_replace('_', '-', $a), str_replace('_', '-', $b));
+        return strnatcasecmp($a, $b);
+    }
+    
     /**
      * Add an eqpt which name is given.
      * Subscription topic is set to '$name/#', as the plugin does when adding an eqpt automatically
@@ -55,12 +60,12 @@ class MqttEqpts {
         
         // Sort the array according to the order of the eqLogic::byType API command
         usort($this->eqpts, function($a, $b) {
-            $obj_a = isset($a['object_id']) ? JeedomObjects::getById($a['object_id'])[self::KEY_NAME] : ' ';
-            $obj_b = isset($b['object_id']) ? JeedomObjects::getById($b['object_id'])[self::KEY_NAME] : ' ';
-            if (($ret = strnatcasecmp($obj_a, $obj_b)) == 0)
-                $ret = strnatcasecmp($a[self::KEY_NAME], $b[self::KEY_NAME]);
+            //$obj_a = isset($a['object_id']) ? JeedomObjects::getById($a['object_id'])[self::KEY_NAME] : ' ';
+            //$obj_b = isset($b['object_id']) ? JeedomObjects::getById($b['object_id'])[self::KEY_NAME] : ' ';
+            //06/12/2018 strnatcasecmp replace by my_strcmp
+            return self::my_strcmp($a[self::KEY_NAME], $b[self::KEY_NAME]);
             
-            return $ret;
+            //return $ret;
         });
     }
 
@@ -84,7 +89,7 @@ class MqttEqpts {
         $mqtt->connect();
 
         $mqtt->subscribe(array('#' => array("qos" => 0, "function" => array($this, 'processMqttMsg'))), 0);
-        for ($i = 1; $i <= 10; $i++) {
+        for ($i = 1; $i <= 50; $i++) {
             $mqtt->proc();
         }
         $mqtt->close();
@@ -123,7 +128,7 @@ class MqttEqpts {
      */
     public function setCmd(string $eqptName, string $topic, $val, $cmdName=null) {
         if (($eqpt = & $this->getEqptFromName($eqptName)) == null)
-            throw new Exception('eqpt ' . $eqptName . ' does not exist');
+            throw new \Exception('eqpt ' . $eqptName . ' does not exist');
         
         // Command name not provided: built it automatically
         if (!isset($cmdName)) {
@@ -209,6 +214,10 @@ class MqttEqpts {
         $this->tc->assertArrayNotHasKey('error', $resp, 'API returned an error on eqLogic::byType request');
         $actualEqpts = $resp['result'];
         
+        usort($actualEqpts, function($a, $b) {
+            return self::my_strcmp($a[self::KEY_NAME], $b[self::KEY_NAME]);
+        });
+        
         // Check the number of eqpts
         $this->tc->assertCount(count($this->eqpts), $actualEqpts, 'Bad number of jMQTT equipments');
         
@@ -232,15 +241,15 @@ class MqttEqpts {
                 $this->tc->assertCount(count($eqpt[self::KEY_CMDS]), $actualCmds,
                     'Bad number of commands for equipement ' . $eqpt[self::KEY_NAME]);
                 
-                //for debug
-                file_put_contents('/tmp/expected.json', json_encode($eqpt, JSON_PRETTY_PRINT));
-                file_put_contents('/tmp/actual.json', json_encode($actualEqpt, JSON_PRETTY_PRINT));
-                
                 // Get rid of non checked keys in $actualCmds
                 self::alignArrayKeysAndGetId($eqpt[self::KEY_CMDS], $actualCmds);
                 
                 $actualEqpt[self::KEY_CMDS] = $actualCmds;
             }
+            
+            //for debug
+            file_put_contents('/tmp/expected.json', json_encode($eqpt, JSON_PRETTY_PRINT));
+            file_put_contents('/tmp/actual.json', json_encode($actualEqpt, JSON_PRETTY_PRINT));
             
             $this->tc->assertJsonStringEqualsJsonString(json_encode($eqpt), json_encode($actualEqpt),
                 'assertion error in equipment ' . $eqpt[self::KEY_NAME]);
@@ -277,6 +286,14 @@ class MqttEqpts {
         $eqpt['object_id'] = $obj_id;
         $eqpt['logicalId'] = $name . '/#';
         $eqpt['configuration']['topic'] = $eqpt['logicalId'];
+        
+        if ($this->api->getJeedomVersion() == '3.3') {
+            foreach($eqpt as $id => &$v) {
+                if (is_null($v))
+                    $v = false;
+            }
+        }
+        
         return $eqpt;
     }
     
@@ -289,7 +306,15 @@ class MqttEqpts {
      */
     private function createCmd($cmdName, $topic, $val) {
         $cmd = json_decode(file_get_contents(__DIR__ . '/default_cmd.json'), true);
+        if ($this->api->getJeedomVersion() == '3.3') {
+            foreach($cmd as $id => &$v) {
+                if (is_null($v))
+                    $v = false;
+            }
+        }
+        
         self::updateCmd($cmd, $cmdName, $topic, $val);
+                
         return $cmd;
     }
     
@@ -358,6 +383,9 @@ class MqttEqpts {
         // Get full equipement data using the API
         $resp = $this->api->sendRequest('eqLogic::byType', array('type' => 'jMQTT'));
         $resp = $resp['result'];
+        usort($resp, function($a, $b) {
+            return self::my_strcmp($a[self::KEY_NAME], $b[self::KEY_NAME]);
+        });
         
         foreach($resp as $i => $eqpt) {
             $this->add($eqpt[self::KEY_NAME], $eqpt['object_id']);

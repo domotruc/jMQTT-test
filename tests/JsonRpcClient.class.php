@@ -36,9 +36,9 @@ class JsonRpcClient {
 
 	/**
 	 *
-	 * @param type $_apiAddr
-	 * @param type $_apikey
-	 * @param type $_options
+	 * @param string $_apiAddr
+	 * @param string $_apikey
+	 * @param array $_options
 	 */
 	public function __construct($_apiAddr, $_apikey, $_options = array()) {
 		$this->apiAddr = $_apiAddr;
@@ -47,10 +47,10 @@ class JsonRpcClient {
 	}
 	/**
 	 *
-	 * @param type $_method
+	 * @param string $_method
 	 * @param array $_params
 	 * @param int $_timeout
-	 * @param type $_file
+	 * @param array[string] $_file
 	 * @param int $_maxRetry
 	 * @return boolean
 	 */

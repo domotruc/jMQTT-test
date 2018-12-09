@@ -3,7 +3,7 @@
 
 use Facebook\WebDriver\WebDriverBy as By;
 
-require_once('vendor/autoload.php');
+require_once (__DIR__ . '/../vendor/autoload.php');
 include_once 'MqttTestCase.php';
 
 class UninstallTest extends MqttTestCase {
@@ -43,7 +43,7 @@ class UninstallTest extends MqttTestCase {
         
         $this->assertTrue(function_exists('ssh2_connect'), 'SSH2 is not install. apt-get install php-ssh2 on debian system');
         
-        $session = ssh2_connect($_ENV['ssh_host'], 22);
+        $session = ssh2_connect($_ENV['ssh_host'], $_ENV['ssh_port']);
         ssh2_auth_password($session, $_ENV['ssh_username'], $_ENV['ssh_password']);
         
         $ver = $this->ssh2_exec($session, "php -version");
