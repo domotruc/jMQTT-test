@@ -2,7 +2,7 @@
 	"require" : {
 		"phpunit/phpunit" : "^6.5",
 		"facebook/webdriver" : "^1.6",
-		"domotruc/mqttgen" : "^1.0",
+		"domotruc/mqttgen" : "dev-master",
 		"bluerhinos/phpmqtt" : "dev-master"
 	}
 }

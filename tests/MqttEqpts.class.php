@@ -4,7 +4,9 @@ require_once (__DIR__ . '/../vendor/autoload.php');
 include_once 'JeedomObjects.class.php';
 
 use Bluerhinos\phpMQTT;
+use Facebook\WebDriver\WebDriverBy as By;
 use MqttGen\MqttGen;
+use PHPUnit\Util\PHP\DefaultPhpProcess;
 
 /**
  * Mirrors the jMQTT equipments that should be available in Jeedom
@@ -50,13 +52,15 @@ class MqttEqpts {
     
     /**
      * Add an eqpt which name is given.
-     * Subscription topic is set to '$name/#', as the plugin does when adding an eqpt automatically
+     * Subscription topic is set to '$name/#', as the plugin does when adding an eqpt automatically, except if
+     * $topic_auto is set to false.
      * Order the array in alphabetical order by the 2 following keys : belonging object name, eqpt name 
      * @param string $name equipement name
      * @param string|null $obj_id object id the equipment belongs to (null by default) 
+     * @param bool $topic_auto wether or not topic is set to '$name/#'
      */
-    public function add(string $name, string $obj_id=null) {
-        $this->eqpts[] = $this->createEqpt($name, $obj_id);
+    public function add(string $name, string $obj_id=null, bool $topic_auto=true) {
+        $this->eqpts[] = $this->createEqpt($name, $obj_id, $topic_auto);
         
         // Sort the array according to the order of the eqLogic::byType API command
         usort($this->eqpts, function($a, $b) {
@@ -69,6 +73,32 @@ class MqttEqpts {
         });
     }
 
+    /**
+     * Add the given equipment from the Jeedom interface and to this object
+     * @param string $name
+     * @param bool $isEnable true by default
+     * @param string $topic null by default
+     */
+    public function addFromInterface(string $name, bool $isEnable=true, string $topic=null) {
+        $this->tc->addEqpt($name);
+        $this->add($name, null, false);
+        
+        if ($isEnable) {
+            $this->tc->waitElemIsClickable(By::xpath("//input[@data-l1key='isEnable']"))->click();
+            $this->setParameters($name, array('isEnable' => '1'));
+        }
+        else {
+            $this->setParameters($name, array('isEnable' => '0'));
+        }
+        
+        if (isset($topic)) {           
+            $this->tc->waitElemIsVisible(By::xpath("//input[@data-l2key='topic']"))->sendKeys($topic);
+            $this->setParameters($name, array('logicalId' => $topic, 'configuration' => array('topic' => $topic)));
+        }
+        
+        $this->tc->waitElemIsClickable(By::xpath("//a[@data-action='save']"))->click();
+    }
+    
     /**
      * Callback for the addFromMqttBroker function
      * @param string $topic
@@ -118,15 +148,42 @@ class MqttEqpts {
         $this->tc->setAutoCmdAdding($is_enabled);
     }
     
+
+    /**
+     * Update or add an action cmd to the given named equipment
+     * @param string $eqptName
+     * @param string $topic
+     * @param string $cmdName
+     * @param string $subtype
+     * @param string|null $val optional (null by default)
+     */
+    public function setCmdAction(string $eqptName, string $topic, string $cmdName, string $subtype, $val=null) {
+        $this->setCmd($eqptName, 'action', $subtype, $topic, $val, $cmdName);
+    }
+
+    /**
+     * Update or add an info cmd to the given named equipment
+     * @param string $eqptName
+     * @param string $topic
+     * @param string|null $val
+     * @param string $cmdName
+     * @param string $subtype optional (default=string)
+     */
+    public function setCmdInfo(string $eqptName, string $topic, $val, string $cmdName=null, string $subtype='string') {
+        $this->setCmd($eqptName, 'info', $subtype, $topic, $val, $cmdName);
+    }
+    
     /**
      * Update or add a cmd to the given named equipment
      * @param string $eqptName
+     * @param string $type 'info' or 'action'
+     * @param string $subtype
      * @param string $topic
      * @param string|null $val
      * @param string $cmdName (optional) command name (automatically defined as the plugin does if null)
      * @throw Exception if equipement does not exist
      */
-    public function setCmd(string $eqptName, string $topic, $val, $cmdName=null) {
+    private function setCmd(string $eqptName, string $type, string $subtype, string $topic, $val, string $cmdName=null) {
         if (($eqpt = & $this->getEqptFromName($eqptName)) == null)
             throw new \Exception('eqpt ' . $eqptName . ' does not exist');
         
@@ -136,9 +193,11 @@ class MqttEqpts {
         }
         
         if (($cmd = & self::getCmd($eqpt, $cmdName)) == null) {
-            $cmd = self::createCmd($cmdName, $topic, $val);
-            if (! array_key_exists(self::KEY_CMDS, $eqpt))
+            $cmd = self::createCmd($cmdName, $type, $subtype, $topic, $val);
+            if (! array_key_exists(self::KEY_CMDS, $eqpt)) {
                 $eqpt[self::KEY_CMDS] = array();
+            }
+            $cmd['order'] = $type == 'action' ? strval(count($eqpt[self::KEY_CMDS])) : '0';
             $cmd['eqLogic_id'] = $eqpt['id'];
             $eqpt[self::KEY_CMDS][] = $cmd;
             
@@ -165,7 +224,7 @@ class MqttEqpts {
      * @throw Exception if equipement does not exist
      */
     public function setCmdFromMsg(string $eqptName, array $msg, $cmdName=null) {
-        $this->setCmd($eqptName, $msg[MqttGen::S_TOPIC], $msg[MqttGen::S_PAYLOAD], $cmdName);
+        $this->setCmdInfo($eqptName, $msg[MqttGen::S_TOPIC], $msg[MqttGen::S_PAYLOAD], $cmdName);
     }
     
     /**
@@ -183,11 +242,11 @@ class MqttEqpts {
     }
     
     /**
-     * Delete the given equipment from Jeedom and from this object
+     * Delete the given equipment from Jeedom interface and from this object
      * @param string $name
      * @return boolean whether or not an equipment has been deleted 
      */
-    public function delete(string $name) {
+    public function deleteFromInterface(string $name) {
         foreach($this->eqpts as $i => $eqpt) {
             if ($name == $eqpt[self::KEY_NAME]) {
                 $this->tc->deleteEqpt($name);
@@ -275,24 +334,29 @@ class MqttEqpts {
     
     /**
      * Create a new equipment from default_eqpt.json
-     * Name, logicalId and topic are set according to the given name
+     * logicalId and topic are automatically set if $topic_auto is true
      * @param string $name equipement name
      * @param string|null $obj_id object id the equipment belongs to (null by default)
+     * @param bool $topic_auto wether or not topic is set to '$name/#'
      * @return array equipment
      */
-    private function createEqpt($name, $obj_id=null) {
+    private function createEqpt($name, $obj_id=null, $topic_auto=true) {
         $eqpt = json_decode(file_get_contents(__DIR__ . '/default_eqpt.json'), true);
         $eqpt[self::KEY_NAME] = $name;
         $eqpt['object_id'] = $obj_id;
-        $eqpt['logicalId'] = $name . '/#';
-        $eqpt['configuration']['topic'] = $eqpt['logicalId'];
-        
-        if ($this->api->getJeedomVersion() == '3.3') {
-            foreach($eqpt as $id => &$v) {
-                if (is_null($v))
-                    $v = false;
-            }
+        if ($topic_auto) {
+            $eqpt['logicalId'] = $name . '/#';
+            $eqpt['configuration']['topic'] = $eqpt['logicalId'];
         }
+        
+         if ($this->api->getJeedomVersion() == '3.3') {
+//             foreach($eqpt as $id => &$v) {
+//                 if (is_null($v))
+//                     $v = false;
+//             }
+            // Default value of order is 9999 from Jeedom 3.3.x (instead of 0)
+            $eqpt['order'] = '9999';
+         }
         
         return $eqpt;
     }
@@ -300,19 +364,27 @@ class MqttEqpts {
     /**
      * Create a command
      * @param string $cmdName
+     * @param string $type 'info' or 'action'
+     * @param string $subtype
      * @param string $topic
      * @param string $val
      * @return array command
      */
-    private function createCmd($cmdName, $topic, $val) {
+    private function createCmd($cmdName, $type, $subtype, $topic, $val) {
         $cmd = json_decode(file_get_contents(__DIR__ . '/default_cmd.json'), true);
-        if ($this->api->getJeedomVersion() == '3.3') {
-            foreach($cmd as $id => &$v) {
-                if (is_null($v))
-                    $v = false;
-            }
+//        if ($this->api->getJeedomVersion() == '3.3') {
+//             foreach($cmd as $id => &$v) {
+//                 if (is_null($v))
+//                     $v = false;
+//             }
+//        }
+        $cmd['type'] = $type;
+        $cmd['subType'] = $subtype;
+        if ($type == 'info') {
+            $cmd['configuration']['parseJson'] = '0';
+            $cmd['configuration']['jParent'] = -1;
+            $cmd['configuration']['jOrder'] = -1;
         }
-        
         self::updateCmd($cmd, $cmdName, $topic, $val);
                 
         return $cmd;
@@ -348,15 +420,16 @@ class MqttEqpts {
     private function updateCmd(&$cmd, $cmdName, $topic, $val) {
         $cmd[self::KEY_NAME] = $cmdName;
         $cmd['logicalId'] = $topic;
-
+        $cmd['configuration']['topic'] = $topic;
+        
         # For the moment, we suppose that all data are string
         $type = gettype($val);
-        if ($type == 'integer' || $type = "double")
+        if ($type == 'integer' || $type == 'double')
             $val = strval($val);
-        
         $cmd['currentValue'] = $val;
-        $cmd['configuration']['topic'] = $topic;
-        $cmd['configuration']['value'] = $val;
+            
+        $cmd['value'] = ($cmd['type'] == 'info') ? null: '';
+
         return $cmd;
     }
 

@@ -10,11 +10,7 @@
     "isHistorized": "0",
     "unite": "",
     "configuration": {
-        "topic": "",
-        "parseJson": "0",
-        "value": "",
-        "jParent": -1,
-        "jOrder": -1
+        "topic": ""
     },
     "value": null,
     "isVisible": "1",

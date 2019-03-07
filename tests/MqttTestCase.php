@@ -129,8 +129,20 @@ class MqttTestCase extends PluginTestCase {
     }
     
     /**
+     * Add a jMQTT equipment
+     * Start page spec: no condition
+     * End page: page of the created equipment
+     */
+    public function addEqpt(string $name) {
+        $this->gotoPluginMngt();
+        $this->waitElemIsClickable(By::xpath("//div[@data-action='add']"))->click();
+        $this->waitElemIsVisible(By::xpath("//input[contains(@class,'bootbox-input-text')]"))->sendKeys($name);
+        $this->waitElemIsClickable(By::xpath("//button[@data-bb-handler='confirm']"))->click();
+    }
+    
+    /**
      * Set the auto command adding flag
-     * Start page spec: the equipment page
+     * Start page req.: the equipment page
      * End page: the equipment page
      * @param bool $is_enabled
      */
@@ -169,7 +181,7 @@ class MqttTestCase extends PluginTestCase {
     public function activateAndAssertAPI() {
         
         // Send a ping to the API
-        $resp = self::$apiClient->sendRequest('ping', array());
+        $resp = self::$apiClient->sendRequest('ping');
         
         if (!isset($resp) || array_key_exists('error', $resp)) {
                       

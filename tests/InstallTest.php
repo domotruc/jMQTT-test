@@ -24,14 +24,28 @@ class InstallTest extends MqttTestCase {
      */
     public function testInstall() {
         //self::gotoPluginMngt();
-        self::$wd->findElement(By::className('displayStore'))->click();
-        self::$wd->findElement(By::id('in_search'))->sendKeys('jMQTT');
-        self::$wd->findElement(By::id('bt_search'))->click();
-        self::$wd->findElement(By::xpath("//span[text()='jMQTT']"))->click();
-
-        $this->waitElemIsClickable(By::linkText('Installer ' . $_ENV['plugin_version']))->click();
-        //$this->waitElemIsClickable(By::xpath("//button[text()='Annuler']"))->click();
-        $this->waitElemIsClickable(By::xpath("//button[@data-bb-handler='cancel']"))->click();
+        
+        if ($_ENV['plugin_source'] == 'market') {
+            self::$wd->findElement(By::className('displayStore'))->click();
+            self::$wd->findElement(By::id('in_search'))->sendKeys('jMQTT');
+            self::$wd->findElement(By::id('bt_search'))->click();
+            self::$wd->findElement(By::xpath("//span[text()='jMQTT']"))->click();
+    
+            $this->waitElemIsClickable(By::linkText('Installer ' . $_ENV['plugin_version']))->click();
+            //$this->waitElemIsClickable(By::xpath("//button[text()='Annuler']"))->click();
+            $this->waitElemIsClickable(By::xpath("//button[@data-bb-handler='cancel']"))->click();
+        }
+        
+        if ($_ENV['plugin_source'] == 'github') {
+            $this->waitElemIsClickable(By::id('bt_addPluginFromOtherSource'))->click();
+            (new Select(self::$wd->findElement(By::xpath("//select[@data-l1key='source']"))))->selectByValue('github');
+            $this->waitElemIsClickable(By::xpath("//div[@class='repoSource repo_github']//input[@data-l1key='logicalId']"))->clear()->sendKeys('jMQTT');
+            $this->waitElemIsClickable(By::xpath("//input[@data-l2key='user']"))->clear()->sendKeys('domotruc');
+            $this->waitElemIsClickable(By::xpath("//input[@data-l2key='repository']"))->clear()->sendKeys('jMQTT');
+            $this->waitElemIsClickable(By::xpath("//input[@data-l2key='version']"))->clear()->sendKeys($_ENV['plugin_version']);
+            $this->waitElemIsClickable(By::id('bt_repoAddSaveUpdate'))->click();
+            $this->waitElemIsClickable(By::id('div_repoAddAlert'));
+        }
         
         // Goto plugin management page
         self::$wd->navigate()->refresh();
@@ -44,20 +58,20 @@ class InstallTest extends MqttTestCase {
      */
     public function testConfigurePlugin() {
         $this->gotoPluginsMngt();
-        self::$wd->findElement(By::xpath("//div[@data-plugin_id='jMQTT']"))->click();
+        $this->waitElemIsClickable(By::xpath("//div[@data-plugin_id='jMQTT']"))->click();
 
         // Activate the plugin if necessary
-        $el = self::$wd->findElement(By::xpath("//label[text()='Statut']//following-sibling::div//descendant::span"));
+        $el = $this->waitElemIsVisible(By::xpath("//label[text()='Statut']//following-sibling::div//descendant::span"));
         if ($el->getText() != 'Actif')
-            self::$wd->findElement(By::xpath("//a[text()=' Activer']"))->click();
+            $this->waitElemIsClickable(By::xpath("//a[text()=' Activer']"))->click();
 
         sleep(2);
         
         // Log in debug mode
         $this->waitElemIsClickable(By::xpath("//input[@data-l2key='100']"))->click();
-        self::$wd->findElement(By::xpath("//a[@id='bt_savePluginLogConfig']"))->click();
+        $this->waitElemIsClickable(By::xpath("//a[@id='bt_savePluginLogConfig']"))->click();
         
-        $dep = self::$wd->findElement(By::xpath("//td[@class='dependancyState']//descendant::span"))->getText();
+        $dep = $this->waitElemIsVisible(By::xpath("//td[@class='dependancyState']//descendant::span"))->getText();
         if ($dep == "NOK") {
             $this->waitElemIsClickable(By::className('launchInstallPluginDependancy'))->click();
             for($i=1; $i<36 ; $i++) {
@@ -70,33 +84,36 @@ class InstallTest extends MqttTestCase {
             $this->assertEquals('OK', $dep, 'dependancies are NOK');
         }
             
-        self::$wd->findElement(By::xpath("//input[@data-l1key='mqttAdress']"))->clear()->sendKeys($_ENV['mosquitto_host']);
-        self::$wd->findElement(By::xpath("//input[@data-l1key='mqttPort']"))->clear()->sendKeys($_ENV['mosquitto_port']);
-        self::$wd->findElement(By::xpath("//input[@data-l1key='mqttId']"))->clear()->sendKeys($_ENV['mosquitto_client_id']);
-        self::$wd->findElement(By::xpath("//input[@data-l1key='mqttTopic']"))->clear()->sendKeys('#');
+        $this->waitElemIsClickable(By::xpath("//input[@data-l1key='mqttAdress']"))->clear()->sendKeys($_ENV['mosquitto_host']);
+        $this->waitElemIsClickable(By::xpath("//input[@data-l1key='mqttPort']"))->clear()->sendKeys($_ENV['mosquitto_port']);
+        $this->waitElemIsClickable(By::xpath("//input[@data-l1key='mqttId']"))->clear()->sendKeys($_ENV['mosquitto_client_id']);
+        $this->waitElemIsClickable(By::xpath("//input[@data-l1key='mqttTopic']"))->clear()->sendKeys('#');
         (new Select(self::$wd->findElement(By::xpath("//select[@data-l1key='api']"))))->selectByValue('disable');
         $this->waitForDeamonRestartDelay();
-        self::$wd->findElement(By::id('bt_savePluginConfig'))->click();
+        $this->waitElemIsClickable(By::id('bt_savePluginConfig'))->click();
 
-        $el = self::$wd->findElement(By::xpath("//td[@class='deamonState']//descendant::span"));
+        $el = $this->waitElemIsVisible(By::xpath("//td[@class='deamonState']//descendant::span"));
         $this->assertEquals($el->getText(), 'OK', 'daemon is NOK');
     }
 
     /*
-     *
+     * Test that the plugin does not contain any equipment
      */
     public function testNoEqpt() {
         $this->gotoPluginMngt();
         $this->assertNoEqpt();
     }
     
+    /*
+     * Activate and test jMQTT API
+     */
     public function testActivateAPI() {
         
         // Desactivate the JSON RPC API in case it is activated
         $this->setJsonRpcApi(false);
         
         // API request should not return anything
-        $resp = self::$apiClient->sendRequest('ping', array());
+        $resp = self::$apiClient->sendRequest('ping');
         $this->assertNull($resp);
         
         // Activate the API

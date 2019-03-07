@@ -11,7 +11,7 @@ class UninstallTest extends MqttTestCase {
     public function testDesactivateJsonRpcAPI() {
         $this->setJsonRpcApi(false);
         
-        $resp = self::$apiClient->sendRequest('ping', array());
+        $resp = self::$apiClient->sendRequest('ping');
         $this->assertEquals("Vous n'êtes pas autorisé à effectuer cette action (JSON-RPC disable)", $resp['error']['message']);
     }
     

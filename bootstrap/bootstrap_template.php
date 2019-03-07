@@ -8,6 +8,7 @@ $_ENV['jeedom_username'] = '';
 $_ENV['jeedom_password'] = '';
 
 // Plugin version to install (beta or stable)
+$_ENV['plugin_source'] = 'market';  // github or market
 $_ENV['plugin_version'] = 'beta';
 
 

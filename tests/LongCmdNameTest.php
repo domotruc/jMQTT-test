@@ -43,28 +43,18 @@ class LongCmdNameTest extends MqttTestCase {
         
         // Delete the equipment if it exists
         $this->disableIncludeMode();
-        $eqptsRef->delete($eqptName);
+        $eqptsRef->deleteFromInterface($eqptName);
 
         // Create the N equipment manually
         $msg = $mqttPlay->nextMessage(false);
         $topic = substr($msg[MqttPlay::S_TOPIC], 0, strrpos($msg[MqttPlay::S_TOPIC], '/')) . '/#';
-        
-        $this->waitElemIsClickable(By::xpath("//div[@data-action='add']"))->click();
-        $this->waitElemIsVisible(By::xpath("//input[contains(@class,'bootbox-input-text')]"))->sendKeys($eqptName);
-        $this->waitElemIsClickable(By::xpath("//button[@data-bb-handler='confirm']"))->click();
-        
-        $this->waitElemIsClickable(By::xpath("//input[@data-l1key='isEnable']"))->click();
-        $this->waitElemIsVisible(By::xpath("//input[@data-l2key='topic']"))->sendKeys($topic);
-        $this->waitElemIsClickable(By::xpath("//a[@data-action='save']"))->click();
-        
-        $eqptsRef->add($eqptName);
-        $eqptsRef->setParameters($eqptName, array('logicalId' => $topic, 'configuration' => array('topic' => $topic)));
+        $eqptsRef->addFromInterface($eqptName, true, $topic);
         
         $this->gotoPluginMngt();
         $eqptsRef->assert(true);
         
         while (($msg = $mqttPlay->nextMessage()) != null) {
-            $eqptsRef->setCmd($eqptName, $msg[MqttPlay::S_TOPIC], $msg[MqttPlay::S_PAYLOAD]);
+            $eqptsRef->setCmdInfo($eqptName, $msg[MqttPlay::S_TOPIC], $msg[MqttPlay::S_PAYLOAD]);
             $eqptsRef->assert(false);
         }
         
@@ -81,7 +71,7 @@ class LongCmdNameTest extends MqttTestCase {
         $eqptName = 'N';
         
         // Delete the equipment created in the previous test
-        $eqptsRef->delete($eqptName);
+        $eqptsRef->deleteFromInterface($eqptName);
         $this->gotoPluginMngt();
         $eqptsRef->assert(true);
         
@@ -97,7 +87,7 @@ class LongCmdNameTest extends MqttTestCase {
                 $is_first = false;
             }
             
-            $eqptsRef->setCmd($eqptName, $msg[MqttPlay::S_TOPIC], $msg[MqttPlay::S_PAYLOAD]);
+            $eqptsRef->setCmdInfo($eqptName, $msg[MqttPlay::S_TOPIC], $msg[MqttPlay::S_PAYLOAD]);
             $eqptsRef->assert(false);
         }
         

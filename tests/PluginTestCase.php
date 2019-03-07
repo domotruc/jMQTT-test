@@ -83,7 +83,7 @@ abstract class PluginTestCase extends \PHPUnit\Framework\TestCase {
     * Wait the necessary time to full the 45s delay between 2 deamons start
     */
    public function waitForDeamonRestartDelay() {
-       $el = $this->waitElemIsVisible(By::className('td_lastLaunchDeamon'));
+       $el = self::$wd->findElement(By::xpath("//td[@class='td_lastLaunchDeamon']"));
        if ($el->getText() == 'Inconnue')
            return;
        $diff = (new DateTime())->getTimestamp() - (new DateTime($el->getText()))->getTimestamp();

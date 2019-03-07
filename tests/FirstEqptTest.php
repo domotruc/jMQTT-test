@@ -42,7 +42,7 @@ class FirstEqptTest extends MqttTestCase {
         self::assertIncludeMode(true);
         $eqptsRef->addFromMqttBroker();
         self::$apiClient->setMqttEqpts($eqptsRef);
-        $eqptsRef->setCmd($_ENV['mosquitto_client_id'], $_ENV['mosquitto_client_id'] . '/status', 'online');
+        $eqptsRef->setCmdInfo($_ENV['mosquitto_client_id'], $_ENV['mosquitto_client_id'] . '/status', 'online');
 
         // Do not check the html on purpose (because the API equipment is added between the 
         // the API answer is returned and the check)
