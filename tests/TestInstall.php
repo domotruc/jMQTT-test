@@ -6,7 +6,7 @@ use Facebook\WebDriver\WebDriverSelect as Select;
 require_once (__DIR__ . '/../vendor/autoload.php');
 include_once 'MqttTestCase.php';
 
-class InstallTest extends MqttTestCase {
+class TestInstall extends MqttTestCase {
 
     /**
      * Check the plugin is not installed

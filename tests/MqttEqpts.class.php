@@ -10,7 +10,7 @@ use PHPUnit\Util\PHP\DefaultPhpProcess;
 
 /**
  * Mirrors the jMQTT equipments that should be available in Jeedom
- *
+ * for a given broker
  */
 class MqttEqpts {
 

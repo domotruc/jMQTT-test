@@ -56,7 +56,7 @@ abstract class PluginTestCase extends \PHPUnit\Framework\TestCase {
    }
    
    /**
-    * Load the plugin under test configuration page
+    * Load the plugin configuration page
     */
    public function gotoPluginConfPanel() {
        $this->gotoPluginMngt();
@@ -67,8 +67,7 @@ abstract class PluginTestCase extends \PHPUnit\Framework\TestCase {
     * Load the plugin uder test equipment page
     */
    public function gotoPluginMngt() {
-       self::$wd->get($_ENV['jeedom_url'] . 'index.php?v=d&m=' .
-           $this->plugin_id . '&p=' . $this->plugin_id);
+       self::$wd->get($_ENV['jeedom_url'] . 'index.php?v=d&m=' . $this->plugin_id . '&p=' . $this->plugin_id);
        usleep(200000); // To avoid time to time assert failure (actual eqpts name list empty)
    }
    
@@ -113,7 +112,7 @@ abstract class PluginTestCase extends \PHPUnit\Framework\TestCase {
    public function assertElementNotFound(By $locator, string $msg, int $delay = 1) {
        self::$wd->manage()->timeouts()->implicitlyWait($delay);
        try {
-           $el = self::$wd->findElement($locator);
+           self::$wd->findElement($locator);
            $this->assertTrue(false, $msg);
        } catch ( Exception\NoSuchElementException $e ) {
            $this->assertTrue(true, $msg);

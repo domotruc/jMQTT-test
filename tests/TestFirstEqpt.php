@@ -6,7 +6,7 @@ include_once 'MqttEqpts.class.php';
 
 use MqttGen\MqttGen;
 
-class FirstEqptTest extends MqttTestCase {
+class TestFirstEqpt extends MqttTestCase {
    
     private const EQPT = 'ebusd';
     

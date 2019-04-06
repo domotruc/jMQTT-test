@@ -8,7 +8,7 @@ use Facebook\WebDriver\WebDriverBy as By;
 use Facebook\WebDriver\WebDriverSelect as Select;
 use MqttPlay\MqttPlay;
 
-class ActionsTest extends MqttTestCase {
+class TestActions extends MqttTestCase {
 
     private $cmd_ref = array(
         'other_string' => array('subtype' => 'other','value' => 'online','expected_published_value' => 'online',

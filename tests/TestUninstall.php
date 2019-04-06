@@ -6,7 +6,7 @@ use Facebook\WebDriver\WebDriverBy as By;
 require_once (__DIR__ . '/../vendor/autoload.php');
 include_once 'MqttTestCase.php';
 
-class UninstallTest extends MqttTestCase {
+class TestUninstall extends MqttTestCase {
 
     public function testDesactivateJsonRpcAPI() {
         $this->setJsonRpcApi(false);
