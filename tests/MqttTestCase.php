@@ -49,8 +49,8 @@ class MqttTestCase extends PluginTestCase {
         }
         else {
             // We may have to wait for equipement inclusion
+            /** @var WebDriverElement[] $els */
             $by = By::xpath("//div[contains(@class,'eqLogicDisplayCard')]");
-            //$by = By::xpath("//div[contains(@class,'eqLogicDisplayCard')]//center//strong");
             $els = self::$wd->findElements($by);
             for($i=0 ; $i<10 ; $i++) {
                 if (count($list) == count($list))
@@ -60,17 +60,17 @@ class MqttTestCase extends PluginTestCase {
             } 
             $this->assertCount(count($list), $els, 'Equipment number is incorrect');
 
-            $els_name = self::$wd->findElements(By::xpath("//div[contains(@class,'eqLogicDisplayCard')]//center//strong"));
+            $els_name = self::$wd->findElements(By::xpath("//div[contains(@class,'eqLogicDisplayCard')]//span//strong"));
             usort($els_name, function($a, $b) {
                 return MqttEqpts::my_strcmp(trim($a->getAttribute("innerText")), trim($b->getAttribute("innerText")));
             });
             
             foreach ($list as $key => $prop) {
-
+                $html = $els[$key]->getAttribute("innerHTML");
                 if ($prop[MqttEqpts::KEY_AUTO_ADD_CMD])
-                    $this->assertContains('auto', $els[$key]->getAttribute('class'));
+                    $this->assertContains('class="auto"', $html, 'Equipment card should show the auto icon');
                 else
-                    $this->assertNotContains('auto', $els[$key]->getAttribute('class'));
+                    $this->assertNotContains('class="auto"', $html, 'Equipment card should not show the auto icon');
 
                 // Note: do not use getText see https://stackoverflow.com/questions/20888592/gettext-method-of-selenium-chrome-driver-sometimes-returns-an-empty-string    
                 $this->assertEquals($prop[MqttEqpts::KEY_NAME], trim($els_name[$key]->getAttribute("innerText")));
@@ -111,7 +111,7 @@ class MqttTestCase extends PluginTestCase {
         self::disableIncludeMode();
         
         do {
-            $els = self::$wd->findElements(By::xpath("//div[contains(@class,'eqLogicDisplayCard')]//center//strong"));
+            $els = self::$wd->findElements(By::xpath("//div[contains(@class,'eqLogicDisplayCard')]//span//strong"));
             foreach ($els as $id => $el) {
                 //print('Removing ' . trim($el->getAttribute("innerText")) . PHP_EOL);
                 $el->click();
