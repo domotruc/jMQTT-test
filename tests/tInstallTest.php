@@ -6,15 +6,19 @@ use Facebook\WebDriver\WebDriverSelect as Select;
 require_once (__DIR__ . '/../vendor/autoload.php');
 include_once 'MqttTestCase.php';
 
-class TestInstall extends MqttTestCase {
+/**
+ * Install the plugin
+ * @author domotruc
+ */
+class tInstallTest extends MqttTestCase {
 
     /**
      * Check the plugin is not installed
      * @group install
      */
     public function testNotInstalled() {
-        //self::gotoPluginMngt();
-        self::assertElementNotFound(By::xpath("//span[text()='jMQTT']"), 'jMQTT is installed');
+        self::gotoPluginsMngt();
+        self::assertElementNotFound(By::xpath("//span[text()='jMQTT']"), 'jMQTT is installed', 3);
     }
     
     /**
@@ -23,7 +27,6 @@ class TestInstall extends MqttTestCase {
      * @group install
      */
     public function testInstall() {
-        //self::gotoPluginMngt();
         
         if ($_ENV['plugin_source'] == 'market') {
             self::$wd->findElement(By::className('displayStore'))->click();
@@ -32,7 +35,6 @@ class TestInstall extends MqttTestCase {
             self::$wd->findElement(By::xpath("//span[text()='jMQTT']"))->click();
     
             $this->waitElemIsClickable(By::linkText('Installer ' . $_ENV['plugin_version']))->click();
-            //$this->waitElemIsClickable(By::xpath("//button[text()='Annuler']"))->click();
             $this->waitElemIsClickable(By::xpath("//button[@data-bb-handler='cancel']"))->click();
         }
         
@@ -44,7 +46,7 @@ class TestInstall extends MqttTestCase {
             $this->waitElemIsClickable(By::xpath("//input[@data-l2key='repository']"))->clear()->sendKeys('jMQTT');
             $this->waitElemIsClickable(By::xpath("//input[@data-l2key='version']"))->clear()->sendKeys($_ENV['plugin_version']);
             $this->waitElemIsClickable(By::id('bt_repoAddSaveUpdate'))->click();
-            $this->waitElemIsClickable(By::id('div_repoAddAlert'));
+            $this->waitElemIsClickable(By::id('div_repoAddAlert'), 'Timeout exceeded regarding installation of jMQTT', 30);
         }
         
         // Goto plugin management page
@@ -55,6 +57,7 @@ class TestInstall extends MqttTestCase {
 
     /**
      * Configure the plugin and check deamon is OK
+     * @depends testInstall
      */
     public function testConfigurePlugin() {
         $this->gotoPluginsMngt();
@@ -81,52 +84,42 @@ class TestInstall extends MqttTestCase {
                 if ($dep == 'OK')
                     break;
             }
-            $this->assertEquals('OK', $dep, 'dependancies are NOK');
         }
-            
-        $this->waitElemIsClickable(By::xpath("//input[@data-l1key='mqttAdress']"))->clear()->sendKeys($_ENV['mosquitto_host']);
-        $this->waitElemIsClickable(By::xpath("//input[@data-l1key='mqttPort']"))->clear()->sendKeys($_ENV['mosquitto_port']);
-        $this->waitElemIsClickable(By::xpath("//input[@data-l1key='mqttId']"))->clear()->sendKeys($_ENV['mosquitto_client_id']);
-        $this->waitElemIsClickable(By::xpath("//input[@data-l1key='mqttTopic']"))->clear()->sendKeys('#');
-        (new Select(self::$wd->findElement(By::xpath("//select[@data-l1key='api']"))))->selectByValue('disable');
-        $this->waitForDeamonRestartDelay();
-        $this->waitElemIsClickable(By::id('bt_savePluginConfig'))->click();
-
-        $el = $this->waitElemIsVisible(By::xpath("//td[@class='deamonState']//descendant::span"));
-        $this->assertEquals($el->getText(), 'OK', 'daemon is NOK');
+        $this->assertEquals('OK', $dep, 'dependancies are NOK');
     }
 
-    /*
+    /**
      * Test that the plugin does not contain any equipment
+     * @depends testConfigurePlugin
      */
     public function testNoEqpt() {
         $this->gotoPluginMngt();
-        $this->assertNoEqpt();
+        $this->assertNoBroker();
     }
     
     /*
      * Activate and test jMQTT API
      */
-    public function testActivateAPI() {
+//     public function testActivateAPI() {
         
-        // Desactivate the JSON RPC API in case it is activated
-        $this->setJsonRpcApi(false);
+//         // Desactivate the JSON RPC API in case it is activated
+//         $this->setJsonRpcApi(false);
         
-        // API request should not return anything
-        $resp = self::$apiClient->sendRequest('ping');
-        $this->assertNull($resp);
+//         // API request should not return anything
+//         $resp = self::$apiClient->sendRequest('ping');
+//         $this->assertNull($resp);
         
-        // Activate the API
-        $this->setMqttApi(true);
+//         // Activate the API
+//         $this->setMqttApi(true);
         
-        // Send a ping to the API
-        $resp = self::$apiClient->sendRequest('ping', array());
-        $this->assertEquals("Vous n'êtes pas autorisé à effectuer cette action (JSON-RPC disable)", $resp['error']['message']);
+//         // Send a ping to the API
+//         $resp = self::$apiClient->sendRequest('ping', array());
+//         $this->assertEquals("Vous n'êtes pas autorisé à effectuer cette action (JSON-RPC disable)", $resp['error']['message']);
         
-        // Activate the JSON RPC API
-        $this->setJsonRpcApi(true);
+//         // Activate the JSON RPC API
+//         $this->setJsonRpcApi(true);
         
-        $resp = self::$apiClient->sendRequest('ping', array());
-        $this->assertEquals("pong", $resp['result']);
-    }
+//         $resp = self::$apiClient->sendRequest('ping', array());
+//         $this->assertEquals("pong", $resp['result']);
+//     }
 }

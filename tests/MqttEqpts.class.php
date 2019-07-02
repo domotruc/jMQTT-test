@@ -2,101 +2,240 @@
 
 require_once (__DIR__ . '/../vendor/autoload.php');
 include_once 'JeedomObjects.class.php';
+include_once 'MqttTestCase.php';
 
 use Bluerhinos\phpMQTT;
 use Facebook\WebDriver\WebDriverBy as By;
 use MqttGen\MqttGen;
-use PHPUnit\Util\PHP\DefaultPhpProcess;
+
+
+interface iBroker {
+    public function setCmdInfo(string $bname, string $eqptName, string $topic, $val, string $cmdName=null, string $subtype='string');
+    public function existsByName(string $bname, string $eqptName);
+}
+
 
 /**
  * Mirrors the jMQTT equipments that should be available in Jeedom
- * for a given broker
  */
-class MqttEqpts {
+class MqttEqpts implements iBroker {
 
     private const KEY_CMDS = 'cmds';
     
     public const KEY_NAME = 'name';
-    public const KEY_AUTO_ADD_CMD = 'auto_add_cmd';
+    public const KEY_ID = 'id';
+    public const KEY_BRK_ID = 'brkId';
+    public const KEY_DAEMON_STATE = 'daemon_state';
+    public const KEY_LAST_COMMUNICATION = 'lastCommunication';
+
+    public const CONF_AUTO_ADD_CMD = 'auto_add_cmd';
+    public const CONF_QOS = 'Qos';
+    public const CONF_MQTT_ADDRESS = 'mqttAddress';
+    public const CONF_MQTT_PORT = 'mqttPort';
+    public const CONF_MQTT_ID = 'mqttId';
+    public const CONF_MQTT_USER = 'mqttUser';
+    public const CONF_MQTT_PASS = 'mqttPass';
+    public const CONF_MQTT_INC_TOPIC = 'mqttIncTopic';
+    public const CONF_API = 'api';
+    
+    public const DAEMON_OK  = 'ok';
+    public const DAEMON_POK = 'pok';
+    public const DAEMON_NOK = 'nok';
+    public const DAEMON_UNCHECKED = 'unchecked';
+    public const DAEMON_ONLINE = 'online';
+    public const DAEMON_OFFLINE = 'offline';
+    
+    // API to be used to interact with Jeedom
+    public const API_JSON_RPC = 0;
+    public const API_MQTT = 1;
+    
+    const TYP_EQPT = 'eqpt';
+    const TYP_BRK  = 'broker';
     
     /**
-     * @var array jMQTT equipments array
+     * jMQTT equipment array of brokers of equipment
+     * @var array[][] jMQTT equipments array
      */
     private $eqpts;
     
     /**
-     * @var MqttTestCase
+     * Broker daemon states
+     * @var string[]
+     */
+    private $daemonStates;
+    
+    /**
+     * @var MqttTestCase $tc
      */
     private $tc;
     
     /**
-     * @var MqttApiClient
+     * @var MqttApiClient[] $apis
      */
-    private $api;
+    private $apis;
     
-    function __construct(MqttTestCase $tc, MqttApiClient $api, bool $init_from_plugin = false) {
+    
+    /**
+     * @var string $current_bname current broker name (see addFromMqttBroker)
+     */
+    private $current_bname;
+    
+    
+    /**
+     * Construct a new object from $_ENV['broker']. Activate and check API.
+     * IMPORTANT: Brokers shall be created and online on plugin side before calling this constructor.
+     * @param MqttTestCase $tc
+     * @param bool $init_from_plugin if true, create equipments from the API
+     * [*]
+     */
+    function __construct(MqttTestCase $tc, bool $init_from_plugin = false) {
         $this->eqpts = array();
+        $this->apis = array();
         $this->tc = $tc;
-        $this->api = $api;
         
-        JeedomObjects::init($api);
+        foreach ($_ENV['brokers'] as $bname => $broker) {
+            $this->apis[$bname] = new MqttApiClient($bname, $broker['mosquitto_client_id'],
+                $broker['mosquitto_host'], $broker['mosquitto_port'], $this);
+        }
+        
+        $this->activateAndAssertAllAPI();
+        
+        JeedomObjects::init(reset($this->apis));
+        
+        // Create brokers
+        foreach ($_ENV['brokers'] as $bname => $broker) {
+            $this->eqpts[$bname] = array();
+            $this->eqpts[$bname][] = $this->createBroker($bname, $broker['mosquitto_host'], $broker['mosquitto_port'],
+                $broker['mosquitto_client_id']);
+            $this->setIsEnable($bname, $bname, true);
+            $this->setBrokerState($bname, self::DAEMON_OK);
+            $this->createBrokerApiCmdInfo($bname);
+            $this->setCmdOrders($bname, $bname);
+        }
+        
+        // Create other equipments if $init_from_plugin is true
         if ($init_from_plugin) {
-            $this->initFromAPI();
+            $this->initFromMqttAPI(reset($this->apis));
+            
+            // If other brokers have been added, init their state
+            foreach(array_keys($this->eqpts) as $bname) {
+                if (! array_key_exists($bname, $_ENV['brokers']))
+                    $this->setBrokerState($bname, self::DAEMON_UNCHECKED);
+            }
         }
     }
 
-    public static function my_strcmp($a, $b) {
+    /**
+     * Activate and check the API for the given broker
+     * [*]
+     */
+    public function activateAndAssertAPI($bname) {
+        $api = $this->apis[$bname];   
+            
+        // Send a ping to the API
+        $resp = $api->sendRequest('ping');
+        
+        if (!isset($resp) || array_key_exists('error', $resp)) {
+            
+            // Activate the API in jMQTT if not activated and retry
+            $this->tc->setMqttApi($bname, true);
+            $this->tc->gotoPluginMngt();
+            
+            $resp = $api->sendRequest('ping');
+            if (!isset($resp) || array_key_exists('error', $resp)) {
+                // Activate also the JSON RPC API
+                $this->tc->setJsonRpcApi(true);
+                $resp = $api->sendRequest('ping');
+            }
+        }
+        
+        $this->tc->assertEquals("pong", $resp['result']);
+    }
+    
+    /**
+     * Activate and check the API for All broker
+     * [*]
+     */
+    public function activateAndAssertAllAPI() {
+        foreach (array_keys($this->apis) as $bname) {
+            $this->activateAndAssertAPI($bname);
+        }
+    }
+    
+    /**
+     * Compare equipment names (to order them as the plugin does in the plugin equipment page)
+     * @param string $a
+     * @param string $b
+     * @return number
+     * [*]
+     */
+    public static function eqptnamecmp(string $a, string $b) {
         //return strnatcasecmp(str_replace('_', '-', $a), str_replace('_', '-', $b));
         return strnatcasecmp($a, $b);
     }
+
+    /**
+     * Compare equipment (to order them as the plugn does in the plugin equipment page)
+     * @param array $a
+     * @param array $b
+     * @return number
+     * [*]
+     */
+    public static function eqptcmp(array $a, array $b) {
+        if ($a['configuration']['type'] == 'broker')
+            return -1;
+        elseif ($b['configuration']['type'] == 'broker')
+            return 1;
+        else
+            return self::eqptnamecmp($a[self::KEY_NAME], $b[self::KEY_NAME]);
+    }
     
     /**
-     * Add an eqpt which name is given.
+     * Add an eqpt to the given broker
+     * 
      * Subscription topic is set to '$name/#', as the plugin does when adding an eqpt automatically, except if
      * $topic_auto is set to false.
-     * Order the array in alphabetical order by the 2 following keys : belonging object name, eqpt name 
+     * Order the array in alphabetical order by the 2 following keys : belonging object name, eqpt name
+     * @param string $broker broker name
      * @param string $name equipement name
-     * @param string|null $obj_id object id the equipment belongs to (null by default) 
+     * @param bool $isEnable whether or not this equipment is enable 
+     * @param string|null $obj_id object id the equipment belongs to 
      * @param bool $topic_auto wether or not topic is set to '$name/#'
      */
-    public function add(string $name, string $obj_id=null, bool $topic_auto=true) {
-        $this->eqpts[] = $this->createEqpt($name, $obj_id, $topic_auto);
+    public function add(string $bname, string $name, bool $isEnable=false, string $obj_id=null, bool $topic_auto=true) {
+        $eqpt = $this->createEqpt($name, $obj_id, $topic_auto);
+        if (key_exists($bname, $this->eqpts) && ! empty($this->eqpts[$bname]))
+            $eqpt['configuration'][self::KEY_BRK_ID] = $this->eqpts[$bname][0]['configuration'][self::KEY_BRK_ID];
+        $this->eqpts[$bname][] = $eqpt;
+        
+        $this->setIsEnable($bname, $name, $isEnable);
         
         // Sort the array according to the order of the eqLogic::byType API command
-        usort($this->eqpts, function($a, $b) {
-            //$obj_a = isset($a['object_id']) ? JeedomObjects::getById($a['object_id'])[self::KEY_NAME] : ' ';
-            //$obj_b = isset($b['object_id']) ? JeedomObjects::getById($b['object_id'])[self::KEY_NAME] : ' ';
-            //06/12/2018 strnatcasecmp replace by my_strcmp
-            return self::my_strcmp($a[self::KEY_NAME], $b[self::KEY_NAME]);
-            
-            //return $ret;
-        });
+        usort($this->eqpts[$bname], array('MqttEqpts', 'eqptcmp'));
     }
 
     /**
-     * Add the given equipment from the Jeedom interface and to this object
-     * @param string $name
+     * Add an equipment to the given broker through the Jeedom interface and to this object.
+     * Equipment is added to the given broker
+     * Equipment souscription topic is set if given.
+     *
+     * @param string $broker broker name
+     * @param string $ename new equipement name
      * @param bool $isEnable true by default
      * @param string $topic null by default
      */
-    public function addFromInterface(string $name, bool $isEnable=true, string $topic=null) {
-        $this->tc->addEqpt($name);
-        $this->add($name, null, false);
+    public function addFromInterface(string $bname, string $ename, bool $isEnable=true, string $topic=null) {
+        $this->tc->addEqpt($bname, $ename);
+        $this->add($bname, $ename, $isEnable, null, false);
         
-        if ($isEnable) {
-            $this->tc->waitElemIsClickable(By::xpath("//input[@data-l1key='isEnable']"))->click();
-            $this->setParameters($name, array('isEnable' => '1'));
-        }
-        else {
-            $this->setParameters($name, array('isEnable' => '0'));
+        if (isset($topic)) {
+            $this->setTopic_ui($bname, $ename, $topic);
         }
         
-        if (isset($topic)) {           
-            $this->tc->waitElemIsVisible(By::xpath("//input[@data-l2key='topic']"))->sendKeys($topic);
-            $this->setParameters($name, array('logicalId' => $topic, 'configuration' => array('topic' => $topic)));
-        }
-        
-        $this->tc->waitElemIsClickable(By::xpath("//a[@data-action='save']"))->click();
+        // By default the created equipment is disabled. If enable is requested, 
+        // enable the equipment in Jeedom through the UI and save
+        if ($isEnable)
+            $this->setIsEnable_ui($bname, $ename, $isEnable);
     }
     
     /**
@@ -106,91 +245,242 @@ class MqttEqpts {
      */
     public function processMqttMsg($topic, $msg){
         $topicArray = explode('/', $topic);
-        if (! $this->exists($topicArray[0]))
-            $this->add($topicArray[0]);
+        if (! $this->existsByTopic($this->current_bname, $topicArray[0] . '/#')) {
+            $this->add($this->current_bname, $topicArray[0], true);
+        }
     }
-    
+
     /**
      * Connect the MQTT broker, subscribe to '#', and add equipments corresponding to the received topics
      * To be used when enabling the jMQTT automatic inclusion mode to determine the expected equipment list
+     * @param string $broker broker name
+     * [*]
      */
-    public function addFromMqttBroker() {
-        $mqtt = new phpMQTT($_ENV['mosquitto_host'], $_ENV['mosquitto_port'], "phpMQTT");
+    public function addFromMqttBroker(string $bname) {
+        $mqtt = new phpMQTT($_ENV['brokers'][$bname]['mosquitto_host'], $_ENV['brokers'][$bname]['mosquitto_port'],
+            "MqttEqpts_" . $bname);
+        $this->current_bname = $bname;
         $mqtt->connect();
-
-        $mqtt->subscribe(array('#' => array("qos" => 0, "function" => array($this, 'processMqttMsg'))), 0);
-        for ($i = 1; $i <= 50; $i++) {
+        $mqtt->subscribe(array('#' => array("qos" => 0, "function" => array($this, 'processMqttMsg'))), 0);        
+        for ($i=0 ; $i<20 ; $i++) {
             $mqtt->proc();
         }
         $mqtt->close();
+        $this->current_bname = null;
     }
-
+    
     /**
-     * Set given parameters of the given named eqpt
+     * Set the state of the given broker
+     * Possible state values: self::DAEMON_OK, self::DAEMON_POK, self::DAEMON_NOK, self::DAEMON_UNCHECKED
+     * @param string $bname
+     * @param string $state
+     * [*]
+     */
+    public function setBrokerState(string $bname, string $state) {
+        $broker = $this->eqpts[$bname][0];
+        $status_cmd_topic = substr($broker['logicalId'], 0, strlen($broker['logicalId'])-1) . 'status';
+        
+        $this->daemonStates[$bname] = $state;
+        if ($state == self::DAEMON_OK) {
+            $this->setBrokerCmdInfo($bname, $status_cmd_topic, self::DAEMON_ONLINE);
+        }
+        elseif ($state != self::DAEMON_UNCHECKED) {
+            $this->setBrokerCmdInfo($bname, $status_cmd_topic, self::DAEMON_OFFLINE);
+        }
+    }
+    
+    /**
+     * Return the state of the given broker
+     * Possible state values: self::DAEMON_OK, self::DAEMON_POK, self::DAEMON_NOK, self::DAEMON_UNCHECKED
+     * @param string $bname
+     * @return string 
+     */
+    public function getBrokerState(string $bname) {
+        return $this->daemonStates[$bname];
+    }
+    
+    /**
+     * Set the given parameters of the given named eqpt
+     * @param string $bname broker name
      * @param string $name
      * @param array $param
      */
-    public function setParameters(string $name, array $param) {
-        $eqpt = & $this->getEqptFromName($name);
+    public function setParameters(string $bname, string $name, array $param) {
+        $eqpt = & $this->getEqptFromName($bname, $name);
         self::copyValues($param, $eqpt);
     }
     
     /**
-     * Set the auto command adding flag of the named equipement.
-     * Done through the user i/f
-     * Start page spec: the equipment page
-     * End page: the equipment page
-     * @param string $name
-     * @param bool $is_enabled
+     * Set the topic of the given named eqpt
+     * @param string $bname broker name
+     * @param string $ename equipment name
+     * @param string $topic
      */
-    public function setAutoCmdAdding(string $name, string $is_enabled) {
-        $this->setParameters($name, array('configuration' => array(self::KEY_AUTO_ADD_CMD => $is_enabled ? "1" : "0")));
-        $this->tc->setAutoCmdAdding($is_enabled);
+    private function setTopic(string $bname, string $ename, string $topic) {
+        $eqpt = & $this->getEqptFromName($bname, $ename);
+        $eqpt['logicalId'] = $topic;
     }
     
-
     /**
-     * Update or add an action cmd to the given named equipment
+     * Set the include mode of the given broker.
+     * Include mode state are verified before and after.
+     * Wait for broker to be online again after the change.
+     * @param string $bname
+     * @param bool $is_include
+     */
+    public function setIncludeMode(string $bname, bool $is_include) {
+        $this->tc->assertIncludeMode($bname, ! $is_include)->click();
+        $this->tc->assertIncludeMode($bname, $is_include);
+        $this->waitForBroker($bname);
+    }
+    
+    /**
+     * Change the name of the given old_name equipment to new_name through the UI
+     * Equipment is not saved.
+     * Start page req.: the equipment page (no matter which tab)
+     * End page: same as start page
+     * @param string $bname
+     * @param string $old_name
+     * @param string $new_name
+     */
+    public function setEqptName_ui(string $bname, string $old_name, string $new_name) {
+        $eqpt = & $this->getEqptFromName($bname, $old_name);
+        $eqpt[self::KEY_NAME] = $new_name;
+        $this->tc->setEqptName($new_name);
+    }
+    
+    /**
+     * Set the given configuration parameter of the currently displayed equipment through the UI.
+     * 
+     * Start page req.: the equipment page (no matter which tab)
+     * End page: same as start page
+     * 
+     * @param string $bname
+     * @param string $ename
+     * @param string $key parameter key (among MqttEqpts::CONF_*)
+     * @param string|bool $value
+     * @param bool $save whether or not equiment shall be saved
+     */
+    public function setConfiguration_ui(string $bname, string $ename, string $key, $value, bool $save=true) {
+        if (is_bool($value))
+            $value = $value ? "1" : "0";
+        
+        $this->setParameters($bname, $ename, array('configuration' => array($key => $value)));
+        $this->tc->setConfiguration($key, $value, $save);
+    }
+    
+    /**
+     * Enable or disable the currently displayed equipment through the UI.
+     * 
+     * Start page req.: the equipment page (no matter which tab)
+     * End page: same as start page
+     * 
+     * @param string $bname
+     * @param string $ename
+     * @param bool $isEnable
+     * @param bool $save whether or not equiment shall be saved
+     */
+    public function setIsEnable_ui(string $bname, string $ename, bool $isEnable, bool $save=true) {
+        $this->setIsEnable($bname, $ename, $isEnable);
+        $this->tc->setIsEnable($isEnable, $save);
+    }
+    
+    /**
+     * Set the isEnable flag of the given named eqpt
+     * @param string $bname broker name
+     * @param string $ename equipment name
+     * @param bool $isEnable
+     */
+    private function setIsEnable(string $bname, string $ename, bool $isEnable) {
+        $this->setParameters($bname, $ename, array('isEnable' => $isEnable ? '1' : '0'));
+    }
+    
+    /**
+     * Set the topic of the currently displayed equipment through the UI.
+     * Equipment is not saved.
+     *
+     * Start page req.: the equipment page (no matter which tab)
+     * End page: same as start page
+     *
+     * @param string $bname
+     * @param string $ename
+     * @param string $topic
+     */
+    public function setTopic_ui(string $bname, string $ename, string $topic) {
+        $this->setTopic($bname, $ename, $topic);
+        $this->tc->setTopic($topic);
+    }
+    
+    /**
+     * Update or add an action cmd to the given named equipment associated to the given broker
+     * @param string $bname
      * @param string $eqptName
      * @param string $topic
      * @param string $cmdName
      * @param string $subtype
      * @param string|null $val optional (null by default)
+     * [*]
      */
-    public function setCmdAction(string $eqptName, string $topic, string $cmdName, string $subtype, $val=null) {
-        $this->setCmd($eqptName, 'action', $subtype, $topic, $val, $cmdName);
+    public function setCmdAction(string $bname, string $eqptName, string $topic, string $cmdName, string $subtype, $val=null) {
+        $this->setCmd($bname, $eqptName, 'action', $subtype, $topic, $val, $cmdName);
     }
 
     /**
-     * Update or add an info cmd to the given named equipment
+     * Update or add an info cmd to the given named equipment associated to the given broker
+     * @param string $bname
      * @param string $eqptName
      * @param string $topic
      * @param string|null $val
      * @param string $cmdName
      * @param string $subtype optional (default=string)
+     * [*]
      */
-    public function setCmdInfo(string $eqptName, string $topic, $val, string $cmdName=null, string $subtype='string') {
-        $this->setCmd($eqptName, 'info', $subtype, $topic, $val, $cmdName);
+    public function setCmdInfo(string $bname, string $eqptName, string $topic, $val, string $cmdName=null, string $subtype='string') {
+        $this->setCmd($bname, $eqptName, 'info', $subtype, $topic, $val, $cmdName);
     }
     
     /**
-     * Update or add a cmd to the given named equipment
-     * @param string $eqptName
+     * Update or add an info cmd to the given broker
+     * @param string $bname
+     * @param string $topic
+     * @param string|null $val
+     * [*]
+     */
+    public function setBrokerCmdInfo(string $bname, string $topic, $val) {
+        $this->setCmdInfo($bname, $this->eqpts[$bname][0][self::KEY_NAME], $topic, $val);
+    }
+    
+    /**
+     * Create the broker api info command
+     * @param string $bname broker name
+     */
+    private function createBrokerApiCmdInfo(string $bname) {
+        $broker = $this->eqpts[$bname][0];
+        $api_cmd_topic = substr($broker['logicalId'], 0, strlen($broker['logicalId'])-1) . 'api';
+        $this->setBrokerCmdInfo($bname, $api_cmd_topic, "");
+    }
+    
+    /**
+     * Update or add a cmd to the given named equipment associated to the given broker
+     * @param string $bname broker name
+     * @param string $ename equipment name
      * @param string $type 'info' or 'action'
      * @param string $subtype
      * @param string $topic
      * @param string|null $val
      * @param string $cmdName (optional) command name (automatically defined as the plugin does if null)
      * @throw Exception if equipement does not exist
+     * [*]
      */
-    private function setCmd(string $eqptName, string $type, string $subtype, string $topic, $val, string $cmdName=null) {
-        if (($eqpt = & $this->getEqptFromName($eqptName)) == null)
-            throw new \Exception('eqpt ' . $eqptName . ' does not exist');
+    private function setCmd(string $bname, string $ename, string $type, string $subtype, string $topic, $val, string $cmdName=null) {
+        
+        $eqpt = & $this->getEqptFromName($bname, $ename);
         
         // Command name not provided: built it automatically
         if (!isset($cmdName)) {
             $cmdName = self::getAutomaticCmdName($eqpt['logicalId'], $topic);            
         }
+        $cmdName = str_replace("/", ":", $cmdName);
         
         if (($cmd = & self::getCmd($eqpt, $cmdName)) == null) {
             $cmd = self::createCmd($cmdName, $type, $subtype, $topic, $val);
@@ -198,7 +488,7 @@ class MqttEqpts {
                 $eqpt[self::KEY_CMDS] = array();
             }
             $cmd['order'] = $type == 'action' ? strval(count($eqpt[self::KEY_CMDS])) : '0';
-            $cmd['eqLogic_id'] = $eqpt['id'];
+            $cmd['eqLogic_id'] = $eqpt[self::KEY_ID];
             $eqpt[self::KEY_CMDS][] = $cmd;
             
             // Sort the array according to the order of the cmd::byEqLogicId API command
@@ -209,48 +499,101 @@ class MqttEqpts {
                     return strcasecmp($a[self::KEY_NAME], $b[self::KEY_NAME]);
                 else
                     return $order_a - $order_b;
-            });
+            });            
         }
             
         self::updateCmd($cmd, $cmdName, $topic, $val);
     }
+    
+    /**
+     * Set the order configuration parameter of the commands of the defined equipment
+     * @param string $bname broker name
+     * @param string $ename equipment name
+     */
+    private function setCmdOrders(string $bname, string $ename) {
+        $eqpt = & $this->getEqptFromName($bname, $ename);
+        for($i=0 ; $i<count($eqpt[self::KEY_CMDS]) ; $i++) {
+            $eqpt[self::KEY_CMDS][$i]['order'] = strval($i);
+        }
+    }
 
     /**
      * Update or add a cmd to the given named equipment from an mqtt message
+     * @param string $bname
      * @see MqttEqpts::setCmd()
      * @param string $eqptName
      * @param array $msg cmd is defined by $msg[MqttGen::S_TOPIC] and $msg[MqttGen::S_PAYLOAD]
      * @param string $cmdName (optional) command name (automatically defined as the plugin does if null)
      * @throw Exception if equipement does not exist
+     * [*]
      */
-    public function setCmdFromMsg(string $eqptName, array $msg, $cmdName=null) {
-        $this->setCmdInfo($eqptName, $msg[MqttGen::S_TOPIC], $msg[MqttGen::S_PAYLOAD], $cmdName);
+    public function setCmdFromMsg(string $bname, string $eqptName, array $msg, $cmdName=null) {
+        $this->setCmdInfo($bname, $eqptName, $msg[MqttGen::S_TOPIC], $msg[MqttGen::S_PAYLOAD], $cmdName);
     }
     
     /**
      * Returns whether or not the given equipement exists
-     * @param string $name
+     * @param string $bname
+     * @param string $eqptName
      * @return boolean
+     * [*]
      */
-    public function exists(string $name) {
-        foreach($this->eqpts as $i => $eqpt) {
-            if ($name == $eqpt[self::KEY_NAME])
-                return true;
+    public function existsByName(string $bname, string $eqptName) {
+        if (array_key_exists($bname, $this->eqpts)) {
+            foreach($this->eqpts[$bname] as $eqpt) {
+                if ($eqptName == $eqpt[self::KEY_NAME])
+                    return true;
+            }
         }
-        
         return false;       
     }
     
     /**
-     * Delete the given equipment from Jeedom interface and from this object
-     * @param string $name
-     * @return boolean whether or not an equipment has been deleted 
+     * Returns whether or not the given equipement exists
+     * @param string $bname
+     * @param string $topic
+     * @return boolean
+     * [*]
      */
-    public function deleteFromInterface(string $name) {
-        foreach($this->eqpts as $i => $eqpt) {
+    public function existsByTopic(string $bname, string $topic) {
+        if (array_key_exists($bname, $this->eqpts)) {
+            foreach($this->eqpts[$bname] as $eqpt) {
+                if ($topic == $eqpt['logicalId'])
+                    return true;
+            }
+        }
+        return false;
+    }
+    
+    /**
+     * Returns whether or not the given equipement exists
+     * @param string $bname
+     * @param string $eqptName
+     * @return boolean
+     * [*]
+     */
+    public function existsById(string $bname, string $id) {
+        if (array_key_exists($bname, $this->eqpts)) {
+            foreach($this->eqpts[$bname] as $eqpt) {
+                if ($id == $eqpt[self::KEY_ID])
+                    return true;
+            }
+        }
+        return false;
+    }
+    
+    /**
+     * Delete the given equipment from Jeedom interface and from this object
+     * @param string $bname
+     * @param string $name
+     * @return boolean whether or not an equipment has been deleted
+     * [*]
+     */
+    public function deleteFromInterface(string $bname, string $name) {
+        foreach($this->eqpts[$bname] as $i => $eqpt) {
             if ($name == $eqpt[self::KEY_NAME]) {
-                $this->tc->deleteEqpt($name);
-                array_splice($this->eqpts, $i, 1);
+                $this->tc->deleteEqpt($bname, $name);
+                array_splice($this->eqpts[$bname], $i, 1);
                 return true;
             }
         }
@@ -258,60 +601,191 @@ class MqttEqpts {
         return false;
     }
     
+    /**
+     * Delete all equipments associated to the given broker (all brokers if the given broker is null)
+     * The broker itself is not removed
+     * @param string $_bname broker name
+     */
+    public function deleteAllEqpts(string $_bname = null) {
+        if (isset($_bname)) {
+            $brokers = array($_bname);
+        }
+        else {
+            $brokers = array_keys($this->apis);
+        }
+        
+        // Send the delete request
+        foreach ($brokers as $bname) {
+            $this->tc->assertEquals('ok', $this->sendMqttRequest($this->apis[$bname], 'jMQTT::removeAllEqpts'));
+            array_splice($this->eqpts[$bname], 1);
+        }
+        
+        // Wait for brokers to be online again
+        foreach ($brokers as $bname) {
+            $this->waitForBroker($bname);
+        }
+        
+        $this->tc->refreshPage();
+    }
+    
     public function prettyPrint() {
         print(json_encode($this->eqpts, JSON_PRETTY_PRINT));
     }
 
     /**
-     * Check all equipments through the API and on the jMQTT equipment page if $check_html is true
-     * @param bool $check_html whether or not jMQTT equipment page shall be checked
+     * @param string|MqttApiClient $_api
+     * @param string $method
+     * @param array $params
+     * @param array $add_msg
+     * @return array
      */
-    public function assert(bool $check_html=true) {
-        // Get full equipement data using the API
-        $resp = $this->api->sendRequest('eqLogic::byType', array('type' => 'jMQTT'));
+    public function sendMqttRequest($api, string $method, array $params=array(), array &$add_msg=null) {
+        if (! is_object($api))
+            $api = $this->apis[$api];
+        $resp = $api->sendRequest($method, $params, $add_msg);
         $this->tc->assertNotNull($resp, 'API did not return any message');
-        $this->tc->assertArrayNotHasKey('error', $resp, 'API returned an error on eqLogic::byType request');
-        $actualEqpts = $resp['result'];
+        $this->tc->assertArrayNotHasKey('error', $resp, 'API returned an error on ' . $method . ' request');
+        return $resp['result'];
+    }
+    
+    /**
+     * @param int $api_method API method: either MqttEqpts::API_JSON_RPC or MqttEqpts::API_MQTT
+     * @param null|string|MqttApiClient $api
+     * @param string $method
+     * @param array $params
+     * @param array $add_msg for MQTT API only (optional)
+     * @return array|NULL|number|string
+     */
+    public function sendJeedomRequest(int $api_method, $api, string $method, array $params=array(), array &$add_msg=null) {
+        if ($api_method == self::API_MQTT) {
+            return $this->sendMqttRequest($api, $method, $params, $add_msg);
+        }
+        else {
+            MqttApiClient::updateApiRequestAnswerCommands();
+            MqttApiClient::updateApiRequestCommands();
+            return $this->tc->sendJsonRpcRequestOK($method, $params);
+        }
+    }
+    
+    /**
+     * Wait for the given broker ro respond correctly
+     * @param string $bname broker name
+     */
+    private function waitForBroker(string $bname) {
+        $api = $this->apis[$bname];
+        for ($resp=null, $i=0 ; $i<10 ; $i++) {
+            usleep(500000);
+            $resp = $api->sendRequest('ping');
+            if (isset($resp))
+                break;
+        }
+        $this->tc->assertEquals("pong", $resp['result'], "Broker " . $bname . " does no more respond correctly");
+    }
+    
+    public function assertLastCommunication(string $bname, string $name, int $lastCommunication=-1) {
+        if ($lastCommunication < 0)
+            $lastCommunication = time();
         
-        usort($actualEqpts, function($a, $b) {
-            return self::my_strcmp($a[self::KEY_NAME], $b[self::KEY_NAME]);
-        });
+        $eqpt = $this->getEqptFromName($bname, $name);
         
-        // Check the number of eqpts
-        $this->tc->assertCount(count($this->eqpts), $actualEqpts, 'Bad number of jMQTT equipments');
+        $res = $this->tc->sendJsonRpcRequestOK('eqLogic::byId', array('id' => $eqpt[self::KEY_ID]));
+                
+        // Check lastCommunication
+        $this->tc->assertLessThan(2, abs(strtotime($res['status'][self::KEY_LAST_COMMUNICATION]) - $lastCommunication),
+             'Wrong lastCommunication date for equipement ' . $name . ' associated to broker ' . $bname);
+    }
+    
+    public function assertLogFiles() {
+        // Determine the expected list of jMQTT log file
+        $expectedLogFiles = $this->getBrokerEqptNames();
+        foreach($expectedLogFiles as &$file) {
+            $file = 'jMQTT_' . $file;
+        }
+        $expectedLogFiles[] = 'jMQTT';
+        $expectedLogFiles[] = 'jMQTT_dep';
+        natcasesort($expectedLogFiles);
+        $expectedLogFiles = array_values($expectedLogFiles);
         
-        // Get rid of non checked keys in $actualEqpts
-        self::alignArrayKeysAndGetId($this->eqpts, $actualEqpts);
+        // Get the actual list from Jeedom
+        $actualLogFiles = $this->tc->sendJsonRpcRequestOK('log::list', array('filtre' => 'jMQTT'));
         
-        // Set commands eqLogic_id
-        $this->setCmdEqLogicId();
-
-        foreach($this->eqpts as $id => &$eqpt) {
+        $this->tc->assertEquals($expectedLogFiles, $actualLogFiles);
+    }
+    
+    /**
+     * Check all equipments
+     * Check is done using the given API if not null, or with all API if null
+     * Check is also done on the jMQTT equipment page if $check_html is true
+     * @param int $api_method API method: either MqttEqpts::API_JSON_RPC or MqttEqpts::API_MQTT (API_MQTT by default)
+     * @param string $_api api name (null to perform the check with all APIs or if JSON RPC API is used)
+     * @param bool $check_html whether or not jMQTT equipment page shall be checked
+     * [*]
+     */
+    public function assert(int $api_method=self::API_MQTT, string $_api=null, bool $check_html=true) {
+        
+        /** @var MqttApiClient[] $apis */
+        if ($api_method == self::API_JSON_RPC) {
+            $apis = array(reset($this->apis));
+        }
+        else {
+            if (isset($_api))
+                $apis = array($this->apis[$_api]);
+            else
+                $apis = $this->apis;
+        }
+        
+        foreach ($apis as $api) {
             
-            $actualEqpt = $actualEqpts[$id];
+            $actualEqpts = $this->getEqptsFromJeedom($api_method, $api);
             
-            if (array_key_exists(self::KEY_CMDS, $eqpt)) {
-                // Get full commands data using the API
-                $resp = $this->api->sendRequest('cmd::byEqLogicId', array('eqLogic_id' => $eqpt['id']));
-                $this->tc->assertArrayNotHasKey('error', $resp, 'API returned an error on cmd::byEqLogicId request');
-                $actualCmds = $resp['result'];
-                
-                // Check the number of cmds
-                $this->tc->assertCount(count($eqpt[self::KEY_CMDS]), $actualCmds,
-                    'Bad number of commands for equipement ' . $eqpt[self::KEY_NAME]);
-                
-                // Get rid of non checked keys in $actualCmds
-                self::alignArrayKeysAndGetId($eqpt[self::KEY_CMDS], $actualCmds);
-                
-                $actualEqpt[self::KEY_CMDS] = $actualCmds;
+            // Check brokers name
+            $this->tc->assertEquals($this->getBrokerEqptNames(), array_keys($actualEqpts),
+                'Broker names are not identical or not in the same order');
+            
+            // Check the number of eqpts
+            // Get rid of non checked keys in $actualEqpts
+            // Set commands eqLogic_id
+            foreach($this->eqpts as &$eqpts) {
+                $bname = $eqpts[0][self::KEY_NAME];
+                $this->tc->assertCount(count($eqpts), $actualEqpts[$bname], 'Number of equipment is not as expected for broker ' . $bname);
+                self::alignArrayKeysAndGetId($eqpts, $actualEqpts[$bname]);
+                $this->setCmdEqLogicId();
             }
-            
-            //for debug
-            file_put_contents('/tmp/expected.json', json_encode($eqpt, JSON_PRETTY_PRINT));
-            file_put_contents('/tmp/actual.json', json_encode($actualEqpt, JSON_PRETTY_PRINT));
-            
-            $this->tc->assertJsonStringEqualsJsonString(json_encode($eqpt), json_encode($actualEqpt),
-                'assertion error in equipment ' . $eqpt[self::KEY_NAME]);
+
+            foreach($this->eqpts as &$eqpts) {
+                $bname = $eqpts[0][self::KEY_NAME];
+                foreach($eqpts as $id => &$eqpt) {
+                    $actualEqpt = $actualEqpts[$bname][$id];
+                    
+                    // Initialize brkId of the reference equipment the first time
+                    if ($eqpt['configuration']['type'] == 'broker' && empty($eqpt['configuration'][self::KEY_BRK_ID])) {
+                        $eqpt['configuration'][self::KEY_BRK_ID] = $eqpt[self::KEY_ID];
+                    }
+                                
+                    if (array_key_exists(self::KEY_CMDS, $eqpt)) {
+                        // Get full commands data using the API
+                        $actualCmds = $this->sendJeedomRequest($api_method, $api, 'cmd::byEqLogicId', array('eqLogic_id' => $eqpt[self::KEY_ID]));
+                    
+                        // Check the number of cmds
+                        $this->tc->assertCount(count($eqpt[self::KEY_CMDS]), $actualCmds,
+                            'Bad number of commands for equipement ' . $eqpt[self::KEY_NAME] . ' associated to broker ' . $bname .
+                            ' (api=' . $api->getBrokerName() . ')');
+                
+                        // Get rid of non checked keys in $actualCmds
+                        self::alignArrayKeysAndGetId($eqpt[self::KEY_CMDS], $actualCmds);
+                
+                        $actualEqpt[self::KEY_CMDS] = $actualCmds;
+                    }
+                    
+                    //for debug
+                    file_put_contents('/tmp/expected.json', json_encode($eqpt, JSON_PRETTY_PRINT));
+                    file_put_contents('/tmp/actual.json', json_encode($actualEqpt, JSON_PRETTY_PRINT));
+                               
+                    $this->tc->assertEquals($eqpt, $actualEqpt, 'Equipment ' . $eqpt[self::KEY_NAME] .
+                        ', associated to broker ' . $bname . ', is not as expected' .
+                        ' (api=' . $api->getBrokerName() . ')');
+                }
+            }
         }
 
         // Check equipment on the jMQTT equipment page
@@ -323,18 +797,40 @@ class MqttEqpts {
      * 
      */
     public function test() {
-        $resp = $this->api->sendRequest('eqLogic::byType', array('type' => 'jMQTT'));
+        $resp = $this->apis->sendRequest('eqLogic::byType', array('type' => 'jMQTT'));
         $json_data = json_encode($resp, JSON_PRETTY_PRINT);
         file_put_contents('/tmp/eqpt.json', $json_data);
 
-        $resp = $this->api->sendRequest('cmd::byEqLogicId', array('eqLogic_id' => $this->eqpts[0]['id']));
+        $resp = $this->apis->sendRequest('cmd::byEqLogicId', array('eqLogic_id' => $this->eqpts[0][self::KEY_ID]));
         $json_data = json_encode($resp, JSON_PRETTY_PRINT);
         file_put_contents('/tmp/cmd.json', $json_data);
     }
+
     
     /**
-     * Create a new equipment from default_eqpt.json
-     * logicalId and topic are automatically set if $topic_auto is true
+     * Return a new broker from default_broker.json
+     * @param string $bname broker name
+     * @param string $address broker ip address
+     * @param string $port broker ip port
+     * @param string $mqtt_id MQTT client id for this broker
+     * @param string|null $obj_id object id the equipment belongs to (null by default)
+     * @return array broker
+     */
+    private function createBroker($bname, $address, $port, $mqtt_id, $obj_id=null) {
+        $broker = json_decode(file_get_contents(__DIR__ . '/default_broker.json'), true);
+        $broker[self::KEY_NAME] = $bname;
+        $broker['object_id'] = $obj_id;
+        $broker['configuration']['type'] = self::TYP_BRK;
+        $broker['configuration'][self::CONF_MQTT_ADDRESS] = $address;
+        $broker['configuration'][self::CONF_MQTT_PORT] = strval($port);
+        $broker['configuration'][self::CONF_MQTT_ID] = $mqtt_id;
+        $broker['logicalId'] = $mqtt_id . '/#';
+        return $broker;
+    }
+    
+    /**
+     * Return a new equipment from default_eqpt.json
+     * logicalId is automatically set if $topic_auto is true
      * @param string $name equipement name
      * @param string|null $obj_id object id the equipment belongs to (null by default)
      * @param bool $topic_auto wether or not topic is set to '$name/#'
@@ -346,17 +842,7 @@ class MqttEqpts {
         $eqpt['object_id'] = $obj_id;
         if ($topic_auto) {
             $eqpt['logicalId'] = $name . '/#';
-            $eqpt['configuration']['topic'] = $eqpt['logicalId'];
         }
-        
-         if ($this->api->getJeedomVersion() == '3.3') {
-//             foreach($eqpt as $id => &$v) {
-//                 if (is_null($v))
-//                     $v = false;
-//             }
-            // Default value of order is 9999 from Jeedom 3.3.x (instead of 0)
-            $eqpt['order'] = '9999';
-         }
         
         return $eqpt;
     }
@@ -382,8 +868,6 @@ class MqttEqpts {
         $cmd['subType'] = $subtype;
         if ($type == 'info') {
             $cmd['configuration']['parseJson'] = '0';
-            $cmd['configuration']['jParent'] = -1;
-            $cmd['configuration']['jOrder'] = -1;
         }
         self::updateCmd($cmd, $cmdName, $topic, $val);
                 
@@ -399,7 +883,7 @@ class MqttEqpts {
     private function &getCmd(&$eqpt, $cmdName) {
         $ret = null;
         if (array_key_exists(self::KEY_CMDS, $eqpt)) {
-            foreach($eqpt[self::KEY_CMDS] as $id => &$cmd) {
+            foreach($eqpt[self::KEY_CMDS] as &$cmd) {
                 if ($cmd[self::KEY_NAME] == $cmdName) {
                     $ret = &$cmd;
                     break;
@@ -407,6 +891,16 @@ class MqttEqpts {
             }   
         }
         return $ret;
+    }
+    
+    /**
+     * Return the logical id of the given equipment
+     * @param string $bname
+     * @param string $name
+     */
+    public function getLogicalId(string $bname, string $name) {
+        $eqpt = $this->getEqptFromName($bname, $name);
+        return $eqpt['logicalId'];
     }
     
     /**
@@ -433,7 +927,13 @@ class MqttEqpts {
         return $cmd;
     }
 
-    private function getAutomaticCmdName($eqptTopic, $cmdTopic) {
+    /**
+     * Return the command name as automatically built by the plugin
+     * @param string $eqptTopic
+     * @param string $cmdTopic
+     * @return string
+     */
+    private function getAutomaticCmdName(string $eqptTopic, string $cmdTopic) {
         $pos1 = strpos($eqptTopic, '#');
         $pos2 = strpos($eqptTopic, '+');
         $pos = $pos1 === false ? $pos2 : ($pos2 === false ? $pos1 : ($pos1 > $pos2 ? $pos2 : $pos1));
@@ -449,76 +949,136 @@ class MqttEqpts {
             $cmdName = hash("md4", $cmdName);
         }
         
-        return $cmdName;
-    }
-    
-    private function initFromAPI() {
-        // Get full equipement data using the API
-        $resp = $this->api->sendRequest('eqLogic::byType', array('type' => 'jMQTT'));
-        $resp = $resp['result'];
-        usort($resp, function($a, $b) {
-            return self::my_strcmp($a[self::KEY_NAME], $b[self::KEY_NAME]);
-        });
-        
-        foreach($resp as $i => $eqpt) {
-            $this->add($eqpt[self::KEY_NAME], $eqpt['object_id']);
-        }
-        
-        self::copyValues($resp, $this->eqpts, false);
+        return str_replace("/", ":", $cmdName);;
     }
     
     /**
-     * Return the equipment array which name is the given one
+     * @param MqttApiClient $api
+     */
+    private function initFromMqttAPI(MqttApiClient $api) {
+        
+        $Eqpts = $this->getEqptsFromJeedom(self::API_MQTT, $api);
+                      
+        foreach($Eqpts as $bname => $eqpts) {
+            foreach($eqpts as $eqpt) {
+                if (! $this->existsByName($bname, $eqpt[self::KEY_NAME]))
+                    $this->add($bname, $eqpt[self::KEY_NAME], false, $eqpt['object_id']);
+            }
+        }
+        
+        self::copyValues($Eqpts, $this->eqpts, false);
+    }
+    
+    /**
+     * @param int $api_method API method: either MqttEqpts::API_JSON_RPC or MqttEqpts::API_MQTT
+     * @param null|MqttApiClient $api API to be used if method is MQTT API
+     * @return string[][]
+     */
+    private function getEqptsFromJeedom(string $api_method, MqttApiClient $api=null) {
+        
+        // Get full equipement data using the API
+        $resp = $this->sendJeedomRequest($api_method, $api, 'eqLogic::byType', array('type' => 'jMQTT'));
+        
+        // Separate equipments by brokers; order equipments
+        $tmp_eqpts = array();
+        $id_to_bname = array();
+        foreach($resp as $eqpt) {
+            $brkId = $eqpt['configuration'][self::KEY_BRK_ID];
+            $tmp_eqpts[$brkId][] = $eqpt;
+            if ($brkId == $eqpt[self::KEY_ID]) {
+                $id_to_bname[$brkId] = $eqpt['name'];
+                $this->tc->assertEquals('broker', $eqpt['configuration']['type'], 'Eqpt should be of type broker');
+            }
+            else {
+                $this->tc->assertEquals('eqpt', $eqpt['configuration']['type'], 'Eqpt should be of type eqpt');
+            }
+        }
+        $eqpts = array();
+        foreach($tmp_eqpts as $bname => $aeqpts) {
+            $eqpts[$id_to_bname[$bname]] = $aeqpts;
+            
+            // Sort $actualEqpts[] by alphabetical order on the equipment name
+            usort($eqpts[$id_to_bname[$bname]], array('MqttEqpts', 'eqptcmp'));
+        }
+        unset($tmp_eqpts);
+        
+        uksort($eqpts, array('MqttEqpts', 'eqptnamecmp'));
+               
+        return $eqpts;
+    }
+    
+    /**
+     * Return the equipment array associated to the given broker and which name is the given one
+     * @param string $bname broker name
      * @param string $name
      * @return array|NULL equipment (null if not found)
      */
-    private function &getEqptFromName($name) {
-        foreach($this->eqpts as $i => &$eqpt) {
+    private function &getEqptFromName($bname, $name) {
+        foreach($this->eqpts[$bname] as &$eqpt) {
             if ($eqpt[self::KEY_NAME] === $name) {
                 return $eqpt;
             }
         }
-        return null;
+        throw new \Exception('eqpt ' . $name . ' does not exist in broker ' . $bname);
     }
     
     /**
-     * Return a simple array with the equipment name and display property
-     * @return Array[string]
+     * Return a table of the names of the broker equipment
+     * @return String[]
+     */
+    private function getBrokerEqptNames() {
+        $bNames = array();
+        foreach($this->eqpts as $eqpts) {
+            $bNames[] = $eqpts[0][self::KEY_NAME];
+        }
+        return $bNames;
+    }
+    
+    /**
+     * Return an array with the equipment name and properties displayed on the plugin equipment page
+     * @return Array[string][string]
      */
     private function getEqptListDisplayProp() {
         $ret = array();
-        foreach($this->eqpts as $i => $eqpt) {
-            $ret[] = array(self::KEY_NAME => $eqpt[self::KEY_NAME],
-                self::KEY_AUTO_ADD_CMD => $eqpt['configuration'][self::KEY_AUTO_ADD_CMD] == '0' ? false : true);
+        foreach($this->eqpts as $bName => $eqpts) {
+            foreach($eqpts as $eqpt) {
+                $ret[$bName][] = array(
+                    self::KEY_NAME => $eqpt[self::KEY_NAME],
+                    self::CONF_AUTO_ADD_CMD => $eqpt['configuration'][self::CONF_AUTO_ADD_CMD] == '0' ? false : true
+                );
+            }
+            if ($this->daemonStates[$bName] != self::DAEMON_UNCHECKED)
+                $ret[$bName][0][self::KEY_DAEMON_STATE] = $this->daemonStates[$bName];
         }
         return $ret;
     }
     
     /**
      * Copy values from the src array to the dest array
-     * Only keys defined in the src array are treated if $keys_from_src is true
-     * Only keys defined in the dest array are treated if $keys_from_src is false
+     * Only keys defined in the src array are treated if $keys_from_src_only is true
+     * Only keys defined in the src and dest arrays are treated if $keys_from_src_only is false
      * @param array $src source array
      * @param array $dest destination array
-     * @param bool $keys_from_src
+     * @param bool $keys_from_src_only
+     * [*]
      */
-    private static function copyValues(array $src, array &$dest, bool $keys_from_src=true) {
-        if ($keys_from_src) {
+    private static function copyValues(array $src, array &$dest, bool $keys_from_src_only=true) {
+        if ($keys_from_src_only) {
             foreach($src as $key => $val) {
-                if (is_array($val)) {
-                    self::copyValues($src[$key], $dest[$key], $keys_from_src);
-                }
+                if (is_array($val))
+                    self::copyValues($src[$key], $dest[$key], $keys_from_src_only);
                 else
                     $dest[$key] = $src[$key];
             }
         }
         else {
             foreach($dest as $key => $val) {
-                if (is_array($val)) {
-                    self::copyValues($src[$key], $dest[$key], $keys_from_src);
+                if (array_key_exists($key, $src)) {
+                    if (is_array($val))
+                        self::copyValues($src[$key], $dest[$key], $keys_from_src_only);
+                    else
+                        $dest[$key] = $src[$key];
                 }
-                else
-                    $dest[$key] = $src[$key];
             }
         }
     }
@@ -527,10 +1087,12 @@ class MqttEqpts {
      * Set the eqLogic_id of all commands
      */
     private function setCmdEqLogicId() {
-        foreach($this->eqpts as $eqpt_id => &$eqpt) {
-            if (array_key_exists(self::KEY_CMDS, $eqpt)) {
-                foreach($eqpt[self::KEY_CMDS] as $cmd_id => &$cmd) {
-                    $cmd['eqLogic_id'] = $eqpt['id'];
+        foreach($this->eqpts as &$eqpts) {
+            foreach($eqpts as &$eqpt) {
+                if (array_key_exists(self::KEY_CMDS, $eqpt)) {
+                    foreach($eqpt[self::KEY_CMDS] as &$cmd) {
+                        $cmd['eqLogic_id'] = $eqpt[self::KEY_ID];
+                    }
                 }
             }
         }
@@ -538,7 +1100,7 @@ class MqttEqpts {
     
     /**
      * Make the $sub array containing the same keys as the $ref array, and
-     * fill the 'id' field in $ref.
+     * fill the self::KEY_ID field in $ref.
      * Keys from $sub that are not present in $ref are suppressed.
      * Function is recursive.
      * @param array $ref
@@ -546,7 +1108,7 @@ class MqttEqpts {
      */
     private static function alignArrayKeysAndGetId(array &$ref, array &$sub) {
         foreach($sub as $key => $val) {
-            if ($key === 'id' && array_key_exists($key, $ref))
+            if ($key === self::KEY_ID && array_key_exists($key, $ref))
                 $ref[$key] = $val;            
             if (!array_key_exists($key, $ref)) {
                 unset($sub[$key]);

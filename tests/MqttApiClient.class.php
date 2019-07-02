@@ -13,16 +13,43 @@ class MqttApiClient {
      * @var phpMQTT
      */
     private $client;
+    
+    /**
+     * @var string broker name
+     */
+    private $bname;
+    
+    /**
+     * To avoid creating clients with the same mqtt id at broker level that would
+     * disconnect themselves each others 
+     * @var integer client id number 
+     */
+    private static $client_id = 1;
+    
+    /**
+     * @var MqttApiClient[]
+     */
+    private static $apis = array();
+    
+    /**
+     * @var bool
+     */
+    private $is_connected = false;
    
     /**
-     * @var string jeedom id the request shall be adressed to
+     * @var string $jeedom_id jeedom id the request shall be adressed to
      */
     private $jeedom_id;
+    
+    /**
+     * @var string $api_topic
+     */
+    private $api_topic;
 
     /**
      * @var integer api request id
      */
-    private $req_id = 0;
+    private static $req_id = 0;
 
     /**
      * @var array
@@ -35,19 +62,19 @@ class MqttApiClient {
     private $prev_req;
     
     /**
-     * @var array
+     * @var string
      */
     private $prev_resp;
-    
+
     /**
      * @var array &$add_msg
      */
     private $add_msg;
     
     /**
-     * @var MqttEqpts reference equipment list
+     * @var iBroker $iBroker interface with the broker linked to this API
      */
-    private $mqttEqpts;
+    private $iBroker;
       
     /**
      * @var string
@@ -56,32 +83,21 @@ class MqttApiClient {
     
     /**
      * Create a mosquitto client and connect to the broker
+     * @param iBroker $iBroker interface to update information commands of the broker, so that
+     * this api object can refresh the api command in the broker equipment.
      */
-    function __construct($jeedom_id, $host = 'localhost', $port = 1883) {
+    function __construct(string $bname, string $jeedom_id, string $host, int $port, iBroker $iBroker=null) {
+        $this->bname = $bname;
         $this->jeedom_id = $jeedom_id;
+        $this->api_topic = $jeedom_id . '/api';
+        $this->iBroker = $iBroker;
+        self::$apis[] = $this;
 
         // Configure and connect MQTT client
-        $this->client = new phpMQTT($_ENV['mosquitto_host'], $_ENV['mosquitto_port'], self::S_CLIENT_ID);
+        $this->client = new phpMQTT($host, $port, self::S_CLIENT_ID . self::$client_id++);
         $this->client->keepalive = 120;
-        ; // new \Mosquitto\Client(self::S_CLIENT_ID);
-        if ($this->client->connect() === false)
-            throw new \Exception('Cannot connect to broker ' . $_ENV['mosquitto_host'] . ':' . $_ENV['mosquitto_port']);
-
-        // $this->client->onMessage(array($this, 'mosquittoMessage'));
-        // $this->client->connect($host, $port);
-        // $this->client->subscribe(self::S_RET_TOPIC, 0);
     }
-    
-    
-    /**
-     * Set the reference eqpt list
-     * So that this api object can refresh the api command in the $jeedom_id equipment
-     * @param MqttEqpts $mqttEqpts
-     */
-    public function setMqttEqpts(MqttEqpts $mqttEqpts) {
-        $this->mqttEqpts = $mqttEqpts;        
-    }
-    
+       
     /**
      * Mosquitto callback called each time a subscribed topic is dispatched by the broker.
      * Decode the received JSON response as an array
@@ -89,18 +105,13 @@ class MqttApiClient {
      * @param string $topic
      * @param string $payload
      */
-    public function mqttMessage($topic, $payload) {
+    public function mqttMessage(string $topic, string $payload) {
         if (isset($this->add_msg) && $this->add_msg['topic'] == $topic) {
             $this->add_msg['payload'] = $payload;
         }
         else {
             $this->response = json_decode($payload, true);
-        
-            // add the response to the S_CLIENT_ID equipment if it exists
-            if (isset($this->mqttEqpts) && $this->mqttEqpts->exists(self::S_CLIENT_ID)) {
-                $this->mqttEqpts->setCmdInfo(self::S_CLIENT_ID, $topic, $this->prev_resp);
-                $this->prev_resp = $payload;
-            }
+            $this->prev_resp = $payload;
         }
     }
 
@@ -115,10 +126,20 @@ class MqttApiClient {
      *      $add_msg['payload']: received payload 
      * @return NULL|string
      */
-    public function sendRequest($method, array $params=array(), array &$add_msg=null) {
+    public function sendRequest(string $method, array $params=array(), array &$add_msg=null) {
         
         $this->add_msg = &$add_msg;
         
+        if (! $this->is_connected) {
+            if ($this->client->connect() === false)
+                throw new \Exception('Cannot connect to broker ' . $this->client->address . ':' . $this->client->port);
+            else
+                $this->is_connected = true;
+        }
+        else {
+            $this->client->proc();
+        }
+            
         // Conversion between 3.2 and 3.3 version
         $conv = array('object::all' => 'jeeObject::all');
         
@@ -127,7 +148,11 @@ class MqttApiClient {
                 $method = $conv[$method];
         }
 
-        $subscription_array = array(self::S_RET_TOPIC => array("qos" => 0, "function" => array($this,'mqttMessage')));
+        $subscription_array = array(
+            self::S_RET_TOPIC => array(
+                "qos" => 0,
+                "function" => array($this,'mqttMessage')
+            ));
         if (isset($add_msg)) {
             $subscription_array[$add_msg['topic']] = array("qos" => 0, "function" => array($this,'mqttMessage'));
             $add_msg['payload'] = null;
@@ -138,7 +163,7 @@ class MqttApiClient {
         
         return $this->processRequest($method, $params, $add_msg);
     }
-    
+       
     /**
      * Always call MqttApiClient::sendRequest
      * @see MqttApiClient::sendRequest
@@ -146,25 +171,25 @@ class MqttApiClient {
     private function processRequest($method, array $params=array(), array &$add_msg=null) {
         
         $req = array('method' => $method,
-                     'id' => strval($this->req_id++),
+                     'id' => strval(self::$req_id++),
                      'topic' => self::S_RET_TOPIC);
         
         if (!empty($params)) {
             $req['params'] = $params;
         }
 
+        // update api request answer commands (for all brokers)
+        self::updateApiRequestAnswerCommands();
+        
         // send the request
-        $topic = $this->jeedom_id . '/api';
         $req = json_encode($req);
         $this->client->proc();
-        $this->client->publish($topic, $req);
+        $this->client->publish($this->api_topic, $req);
         
-        // add the request to the jeedom_id equipment if it exists
-        if (isset($this->mqttEqpts) && $this->mqttEqpts->exists($this->jeedom_id)) {
-            $this->mqttEqpts->setCmdInfo($this->jeedom_id, $topic, $this->prev_req);
-            $this->prev_req = $req;
-        }
-
+        // update api request commands (for all brokers)
+        self::updateApiRequestCommands();
+        $this->prev_req = $req;
+        
         // wait for the answer
         for ($i = 0; $i <= 50; $i++) {
             $this->client->proc();
@@ -175,11 +200,33 @@ class MqttApiClient {
         return $this->response;
     }
     
+    public static function updateApiRequestAnswerCommands() {
+        foreach (self::$apis as $api) {
+            if (isset($api->prev_resp) && isset($api->iBroker) && $api->iBroker->existsByName($api->bname, self::S_CLIENT_ID)) {
+                $api->iBroker->setCmdInfo($api->bname, self::S_CLIENT_ID, self::S_RET_TOPIC, $api->prev_resp);
+                $api->prev_resp = null;
+            }
+        }
+    }
+    
+    public static function updateApiRequestCommands() {
+        foreach (self::$apis as $api) {
+            if (isset($api->prev_req) && isset($api->iBroker) && $api->iBroker->existsByName($api->bname, $api->bname)) {
+                $api->iBroker->setCmdInfo($api->bname, $api->bname, $api->api_topic, $api->prev_req);
+                $api->prev_req = null;
+            }
+        }
+    }
+    
     public function getJeedomVersion() {
         if (! isset($this->jeedom_version)) {
             $resp = $this->sendRequest('version');
             $this->jeedom_version = substr($resp['result'], 0, 3);
         }
         return $this->jeedom_version;
+    }
+    
+    public function getBrokerName() {
+        return $this->bname;
     }
 }

@@ -6,33 +6,23 @@ use Facebook\WebDriver\WebDriverBy as By;
 require_once (__DIR__ . '/../vendor/autoload.php');
 include_once 'MqttTestCase.php';
 
-class TestUninstall extends MqttTestCase {
+class tUninstallTest extends MqttTestCase {
 
     public function testDesactivateJsonRpcAPI() {
         $this->setJsonRpcApi(false);
-        
-        $resp = self::$apiClient->sendRequest('ping');
-        $this->assertEquals("Vous n'êtes pas autorisé à effectuer cette action (JSON-RPC disable)", $resp['error']['message']);
     }
     
     /**
      * Check the plugin is installed
-     * @group uninstall
      */
     public function testInstalled() {
         $this->gotoPluginsMngt();
         $this->assertCount(1, self::$wd->findElements(By::xpath("//div[@data-plugin_id='jMQTT']")), 'jMQTT is not installed');
-        
-        //$this->waitElemIsClickable(By::xpath("//div[@data-plugin_id='jMQTT']"))->click();
-        //$el = $this->waitElemIsVisible(By::xpath("//label[text()='Statut']//following-sibling::div//descendant::span"));
-        //$this->assertEquals($el->getText(), 'Actif', 'plugin is not activated');
-        //self::gotoPluginMngt();
     }
     
     /**
      * Uninstall the plugin and go back to the Jeedom Plugin Management page.
      * @depends testInstalled
-     * @group uninstall
      */
     public function testUnistall() {
         $this->waitElemIsClickable(By::xpath("//div[@data-plugin_id='jMQTT']"))->click();

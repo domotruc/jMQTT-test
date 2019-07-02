@@ -6,6 +6,7 @@
 $_ENV['jeedom_url'] = 'http://your_jeedom_url/';
 $_ENV['jeedom_username'] = '';
 $_ENV['jeedom_password'] = '';
+$_ENV['jeedom_apikey'] = ''; // Global Jeedom API key
 
 // Plugin version to install (beta or stable)
 $_ENV['plugin_source'] = 'market';  // github or market

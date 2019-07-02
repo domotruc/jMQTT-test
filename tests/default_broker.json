@@ -9,10 +9,17 @@
     "isVisible": "0",
     "isEnable": "0",
     "configuration": {
-        "type": "eqpt",
+        "type": "broker",
+        "brkId": "",
         "auto_add_cmd": "1",
         "Qos": "1",
-        "brkId": ""
+        "mqttAddress": "",
+        "mqttPort": "",
+        "mqttId": "",
+        "mqttUser": "",
+        "mqttPass": "",
+        "mqttIncTopic": "#",
+        "api": "enable"
     },
     "order": "9999",
     "comment": null

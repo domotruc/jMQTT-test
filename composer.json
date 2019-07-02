@@ -1,8 +1,11 @@
 {
 	"require" : {
+		"php" : ">=7.2.0",
 		"phpunit/phpunit" : "^6.5",
 		"facebook/webdriver" : "^1.6",
 		"domotruc/mqttgen" : "dev-master",
-		"bluerhinos/phpmqtt" : "dev-master"
+		"bluerhinos/phpmqtt" : "dev-master",
+		"datto/json-rpc-http" : "~4.0",
+		"duncan3dc/fork-helper" : "*"
 	}
 }

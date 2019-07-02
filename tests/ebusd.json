@@ -1,17 +1,11 @@
 {
-	"mqtt": {
-		"host": "localhost",
-		"port": 1883,
-		"username": "",
-		"password": ""
-	},
 	"misc": {
-		"#": "time interval between each publication",
+		"#1": "time interval between each publication",
 		"time_interval": 4,
 		"#": "logging level: 0=notset, 100=debug, 200=info, 300=warning, 400=error",
 		"logging_level": 200,
-		"#": "to log in a file",
-		"#": "if missing or empty string, logs to the console",
+		"#2": "to log in a file",
+		"#3": "if missing or empty string, logs to the console",
 		"logging_file": "/tmp/ebusd.log"
 	},
 	"messages": {

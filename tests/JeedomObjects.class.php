@@ -12,7 +12,7 @@ class JeedomObjects {
     private static $objects;
     
     /**
-     * @var MqttApiClient jMQTT API client
+     * @var MqttApiClient $api jMQTT API client
      */
     private static $api;
     
