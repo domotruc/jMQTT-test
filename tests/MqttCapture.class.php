@@ -62,10 +62,11 @@ class MqttCapture {
      * @return MqttCapture this object
      */
     public function assertMessages(array $expected) {
-        echo 'Expected:' . PHP_EOL;
-        echo $expected;
-        echo PHP_EOL . 'Actual:' . PHP_EOL;
-        echo $this->messages;
+        print_r('Expected:' . PHP_EOL);
+        print_r($expected);
+        print_r(PHP_EOL . 'Actual:' . PHP_EOL);
+        print_r($this->messages);
+        print_r(PHP_EOL);
         $this->tc->assertEquals($expected, $this->messages);
         return $this;
     }
