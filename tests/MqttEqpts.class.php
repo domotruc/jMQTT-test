@@ -419,7 +419,6 @@ class MqttEqpts implements iBroker {
      * @param string $cmdName
      * @param string $subtype
      * @param string|null $val optional (null by default)
-     * [*]
      */
     public function setCmdAction(string $bname, string $eqptName, string $topic, string $cmdName, string $subtype, $val=null) {
         $this->setCmd($bname, $eqptName, 'action', $subtype, $topic, $val, $cmdName);
@@ -433,7 +432,6 @@ class MqttEqpts implements iBroker {
      * @param string|null $val
      * @param string $cmdName
      * @param string $subtype optional (default=string)
-     * [*]
      */
     public function setCmdInfo(string $bname, string $eqptName, string $topic, $val, string $cmdName=null, string $subtype='string') {
         $this->setCmd($bname, $eqptName, 'info', $subtype, $topic, $val, $cmdName);
@@ -444,7 +442,6 @@ class MqttEqpts implements iBroker {
      * @param string $bname
      * @param string $topic
      * @param string|null $val
-     * [*]
      */
     public function setBrokerCmdInfo(string $bname, string $topic, $val) {
         $this->setCmdInfo($bname, $this->eqpts[$bname][0][self::KEY_NAME], $topic, $val);
@@ -470,7 +467,6 @@ class MqttEqpts implements iBroker {
      * @param string|null $val
      * @param string $cmdName (optional) command name (automatically defined as the plugin does if null)
      * @throw Exception if equipement does not exist
-     * [*]
      */
     private function setCmd(string $bname, string $ename, string $type, string $subtype, string $topic, $val, string $cmdName=null) {
         
@@ -553,7 +549,6 @@ class MqttEqpts implements iBroker {
      * @param string $bname
      * @param string $topic
      * @return boolean
-     * [*]
      */
     public function existsByTopic(string $bname, string $topic) {
         if (array_key_exists($bname, $this->eqpts)) {
@@ -829,8 +824,8 @@ class MqttEqpts implements iBroker {
     }
     
     /**
-     * Return a new equipment from default_eqpt.json
-     * logicalId is automatically set if $topic_auto is true
+     * Return a new equipment from default_eqpt.json.
+     * logicalId is automatically set if $topic_auto is true.
      * @param string $name equipement name
      * @param string|null $obj_id object id the equipment belongs to (null by default)
      * @param bool $topic_auto wether or not topic is set to '$name/#'
@@ -913,7 +908,6 @@ class MqttEqpts implements iBroker {
      */
     private function updateCmd(&$cmd, $cmdName, $topic, $val) {
         $cmd[self::KEY_NAME] = $cmdName;
-        $cmd['logicalId'] = $topic;
         $cmd['configuration']['topic'] = $topic;
         
         # For the moment, we suppose that all data are string
