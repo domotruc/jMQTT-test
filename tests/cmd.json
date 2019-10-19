@@ -16,11 +16,7 @@
             "unite": "",
             "configuration": {
                 "topic": "boiler\/status",
-                "parseJson": 0,
-                "prevParseJson": 0,
-                "value": "offline",
-                "jParent": -1,
-                "jOrder": -1
+                "value": "offline"
             },
             "template": null,
             "display": null,

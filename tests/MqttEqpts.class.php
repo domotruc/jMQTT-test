@@ -861,9 +861,6 @@ class MqttEqpts implements iBroker {
 //        }
         $cmd['type'] = $type;
         $cmd['subType'] = $subtype;
-        if ($type == 'info') {
-            $cmd['configuration']['parseJson'] = '0';
-        }
         self::updateCmd($cmd, $cmdName, $topic, $val);
                 
         return $cmd;
