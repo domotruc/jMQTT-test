@@ -24,7 +24,6 @@ class MqttTestCase extends PluginTestCase {
     /**
      * Connect jeedom
      * Check mosquitto libray is loaded
-     * [*]
      */
     public static function setUpBeforeClass() {
         parent::setUpBeforeClass('jMQTT');
@@ -34,20 +33,18 @@ class MqttTestCase extends PluginTestCase {
     
     /**
      * Test no broker, no equipment is shown in the jMQTT plugin page
-     * [*]
      */
     public function assertNoBroker() {
         $els = $this->waitElemsAreVisible(By::xpath("//div[contains(@class,'eqLogicThumbnailContainer')]"));
-        $this->assertCount(2, $els, 'Page should only have 2 eqLogicThumbnailContainers');
+        $this->assertCount(1, $els, 'Page should only have 1 eqLogicThumbnailContainers');
         
-        $this->assertCount(2, $els[0]->findElements(By::xpath(".//div")), 'Gestion section should only have 2 elements');
+        $this->assertCount(3, $els[0]->findElements(By::xpath(".//div")), 'Gestion section should only have 3 elements');
         $this->assertBrokerList(array());
     }
     
     /**
      * Test the given list of equipments is shown on the jMQTT plugin page
      * @param array $list list of equipments; first one shall be the broker
-     * [*]
      */
     public function assertEqptList(array $list = array()) {
         if (count($list) == 0) {
@@ -62,7 +59,6 @@ class MqttTestCase extends PluginTestCase {
     
     /**
      * @param array $list
-     * [*]
      */
     private function assertBrokerEqptList(array $list) {
         $div = $this->getBrokerModulesDiv($list[0][MqttEqpts::KEY_NAME]);
@@ -91,13 +87,12 @@ class MqttTestCase extends PluginTestCase {
     
     /**
      * @param array[string][string] $list @see MqttEqpts::getEqptListDisplayProp
-     * [*]
      */
     private function assertBrokerList(array $list) {
         $div = $this->getBrokersDiv();
         
         if (empty($list)) {
-            $this->assertCount(1, $div->findElements(By::xpath(".//div")), 'Brokers section should only have 1 element');
+            $this->assertCount(3, $div->findElements(By::xpath(".//div")), 'Gestion section should only have 3 elements');
         }
         else {
             $els = $div->findElements(By::xpath(".//div[contains(@class,'eqLogicDisplayCard')]"));
@@ -113,7 +108,6 @@ class MqttTestCase extends PluginTestCase {
     /**
      * @param WebDriverElement $div
      * @param array[string] $eqpt
-     * [*]
      */
     private function assertEqpt($div, $eqpt) {
         $html = $div->getAttribute("innerHTML");
@@ -139,7 +133,6 @@ class MqttTestCase extends PluginTestCase {
      * Start page spec: no condition
      * End page: page of the given broker
      * @param string $bname
-     * [*]
      */
     public function gotoBrokerPage(string $bname) {
         $this->gotoPluginMngt();
@@ -151,7 +144,6 @@ class MqttTestCase extends PluginTestCase {
      * End page: page of the given equipment
      * @param string $bname
      * @param string $name
-     * [*]
      */
     public function gotoEqptPage(string $bname, string $name) {
         $this->gotoPluginMngt();
@@ -179,7 +171,6 @@ class MqttTestCase extends PluginTestCase {
      * End page: pluginn equipment page
      * @param string $bname broker name
      * @param string $name equipment name
-     * [*]
      */
     public function deleteEqpt(string $bname, string $name) {
         $this->gotoEqptPage($bname, $name);
@@ -198,9 +189,9 @@ class MqttTestCase extends PluginTestCase {
         $this->gotoPluginMngt();
         
         do {
-            $div_brokers = self::$wd->findElements(By::xpath("//div[contains(@class,'eqLogicThumbnailContainer')]"))[1];
+            $div_brokers = self::$wd->findElements(By::xpath("//div[contains(@class,'eqLogicThumbnailContainer')]"))[0];
             $nb_div = count($div_brokers->findElements(By::xpath(".//div")));
-            if ($nb_div > 1 ) {          
+            if ($nb_div > 3 ) {          
                 $div_brokers->findElement(By::xpath(".//div[contains(@class,'eqLogicDisplayCard')]"))->click();
                 $this->waitElemIsClickable(By::xpath("//a[@data-action='remove_jmqtt']"))->click();
                 $this->waitElemIsClickable(By::xpath("//button[@data-bb-handler='confirm']"))->click();
@@ -208,7 +199,7 @@ class MqttTestCase extends PluginTestCase {
                 $this->assertDivAlertSuccessDelete();
             }
         }
-        while ($nb_div > 1);
+        while ($nb_div > 3);
         
         // Check jMQTT page does not contain any equipment
         //self::$wd->navigate()->refresh();
@@ -409,7 +400,7 @@ class MqttTestCase extends PluginTestCase {
      * @return \Facebook\WebDriver\Remote\RemoteWebElement
      */
     private function getBrokersDiv() {
-        return $this->waitElemIsVisible(By::xpath("//legend[text()=' Brokers MQTT']//following-sibling::div"));
+        return $this->waitElemIsVisible(By::xpath("//legend[text()=' Gestion plugin et brokers']//following-sibling::div"));
     }
 
     /**
@@ -427,7 +418,6 @@ class MqttTestCase extends PluginTestCase {
      * @param $bname string broker name
      * @param $is_include bool expected state
      * @return WebDriverElement the include mode button
-     * [*]
      */
     public function assertIncludeMode(string $bname, bool $is_include) {
         $div = $this->getBrokerModulesDiv($bname);
