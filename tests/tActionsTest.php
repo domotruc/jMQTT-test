@@ -97,7 +97,7 @@ class tActionsTest extends MqttTestCase {
                 // Check that a confirmation dialog is shown if we ask for refreshing the page before saving
                 if ($is_first) {
                     $this->waitElemIsClickable(By::xpath("//a[@data-action='refreshPage']"))->click();
-                    $this->waitElemIsClickable(By::xpath("//button[@data-bb-handler='cancel']"))->click();
+                    $this->clickDialogBoxCancel();
                     // sleep to let the time to the dialog box to disappear. Otherwise we get the error msg that
                     // it obscures the save button
                     usleep(200000);

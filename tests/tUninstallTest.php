@@ -27,7 +27,7 @@ class tUninstallTest extends MqttTestCase {
     public function testUnistall() {
         $this->waitElemIsClickable(By::xpath("//div[@data-plugin_id='jMQTT']"))->click();
         $this->waitElemIsClickable(By::className('removePlugin'))->click();
-        $this->waitElemIsClickable(By::xpath("//button[@data-bb-handler='confirm']"))->click();
+        $this->clickDialogBoxConfirm();
         $this->waitElemIsVisible(By::className('pluginListContainer'));
         self::assertElementNotFound(By::xpath("//span[text()='jMQTT']"), 'jMQTT is installed');
         

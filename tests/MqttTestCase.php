@@ -175,7 +175,7 @@ class MqttTestCase extends PluginTestCase {
     public function deleteEqpt(string $bname, string $name) {
         $this->gotoEqptPage($bname, $name);
         $this->waitElemIsClickable(By::xpath("//a[@data-action='remove_jmqtt']"))->click();
-        $this->waitElemIsClickable(By::xpath("//button[@data-bb-handler='confirm']"))->click();
+        $this->clickDialogBoxConfirm();
         $this->assertDivAlertSuccessDelete();
         self::$wd->navigate()->refresh();
     }
@@ -194,8 +194,8 @@ class MqttTestCase extends PluginTestCase {
             if ($nb_div > 3 ) {          
                 $div_brokers->findElement(By::xpath(".//div[contains(@class,'eqLogicDisplayCard')]"))->click();
                 $this->waitElemIsClickable(By::xpath("//a[@data-action='remove_jmqtt']"))->click();
-                $this->waitElemIsClickable(By::xpath("//button[@data-bb-handler='confirm']"))->click();
-                $this->waitElemIsClickable(By::xpath("//button[@data-bb-handler='confirm']"))->click();
+                $this->clickDialogBoxConfirm();
+                $this->clickDialogBoxConfirm();
                 $this->assertDivAlertSuccessDelete();
             }
         }
@@ -220,7 +220,7 @@ class MqttTestCase extends PluginTestCase {
             "//legend[text()=' Equipements connectés à " . $bname  . "']//following-sibling::div" .
             "//div[contains(@class,'eqLogicDisplayAction') and contains(@data-action,'add_jmqtt')]"))->click();
         $this->waitElemIsVisible(By::xpath("//input[contains(@class,'bootbox-input-text')]"))->sendKeys($name);
-        $this->waitElemIsClickable(By::xpath("//button[@data-bb-handler='confirm']"))->click();
+        $this->clickDialogBoxConfirm();
         $this->assertDivAlertSuccessSave();
     }
     
@@ -244,7 +244,7 @@ class MqttTestCase extends PluginTestCase {
         // Add the equipement
         $this->waitElemIsClickable(By::xpath("//div[@data-action='add_jmqtt' and not(@brkid)]"))->click();
         $this->waitElemIsVisible(By::xpath("//input[contains(@class,'bootbox-input-text')]"))->sendKeys($broker_info['name']);
-        $this->waitElemIsClickable(By::xpath("//button[@data-bb-handler='confirm']"))->click();
+        $this->clickDialogBoxConfirm();
         $this->assertDivAlertSuccessSave();
         
         // Enable the equipment

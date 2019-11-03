@@ -27,11 +27,16 @@ abstract class PluginTestCase extends TestCase {
      */
     protected static $wdWait;
     
-    
     /**
      * @var int $jsonRpcId JSON RPC request identifier
      */
     private static $jsonRpcId = 0;
+    
+    
+    /**
+     * @var int Jeedom major version
+     */
+    private static $jeedomVersion;
     
     protected $plugin_id;
     
@@ -54,6 +59,21 @@ abstract class PluginTestCase extends TestCase {
         self::$wd->findElement(By::id('in_login_username'))->sendKeys($_ENV['jeedom_username']);
         self::$wd->findElement(By::id('in_login_password'))->sendKeys($_ENV['jeedom_password']);
         self::$wd->findElement(By::id('bt_login_validate'))->click();
+        
+        // Determine Jeedom version
+        $menu_item_nb = count(self::$wd->findElements(By::xpath("//ul[contains(@class,'navbar-right')]/li")));
+        if ($menu_item_nb == 6)
+            self::$jeedomVersion = 4;
+        else
+            self::$jeedomVersion = 3;
+    }
+    
+    /**
+     * Return the Jeedom major version
+     * @return int
+     */
+    public static function getJeedomVersion() {
+        return self::$jeedomVersion;
     }
     
    /**
@@ -84,6 +104,26 @@ abstract class PluginTestCase extends TestCase {
     */
    public function gotoJeedomAdmin() {
        self::$wd->get($_ENV['jeedom_url'] . 'index.php?v=d&p=administration');
+   }
+   
+   /**
+    * Click on the Confirm (or OK) button of a confirmation dialog box
+    */
+   public function clickDialogBoxConfirm() {
+       if ($this->getJeedomVersion() == 3)
+           $this->waitElemIsClickable(By::xpath("//button[@data-bb-handler='confirm']"))->click();
+       else
+           $this->waitElemIsClickable(By::xpath("//button[contains(@class,'bootbox-accept')]"))->click();       
+   }
+
+   /**
+    * Click on the Cancel button of a confirmation dialog box
+    */
+   public function clickDialogBoxCancel() {
+       if ($this->getJeedomVersion() == 3)
+           $this->waitElemIsClickable(By::xpath("//button[@data-bb-handler='cancel']"))->click();
+           else
+               $this->waitElemIsClickable(By::xpath("//button[contains(@class,'bootbox-cancel')]"))->click();
    }
    
    /**

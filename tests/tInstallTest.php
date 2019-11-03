@@ -35,7 +35,7 @@ class tInstallTest extends MqttTestCase {
             self::$wd->findElement(By::xpath("//span[text()='jMQTT']"))->click();
     
             $this->waitElemIsClickable(By::linkText('Installer ' . $_ENV['plugin_version']))->click();
-            $this->waitElemIsClickable(By::xpath("//button[@data-bb-handler='cancel']"))->click();
+            $this->clickDialogBoxCancel();
         }
         
         if ($_ENV['plugin_source'] == 'github') {
