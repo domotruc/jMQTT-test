@@ -10,7 +10,7 @@
 	},
 	"messages": {
 		"s1a": {
-			"topic": "ebusd/global/uptime",
+			"topic": "ebusd entrée n°1/global/uptime",
 			"payload": {
 				"func": "linear",
 				"param": {
@@ -20,7 +20,7 @@
 			}
 		},
 		"s1b": {
-			"topic": "ebusd/broadcast/vdatetime",
+			"topic": "ebusd entrée n°1/broadcast/vdatetime",
 			"payload": {
 				"time": {
 					"value": {
@@ -41,7 +41,7 @@
 			}
 		},
 		"s2": {
-			"topic": "ebusd/bai/Status01",
+			"topic": "ebusd entrée n°1/$ù§~ @çê/status 01",
 			"payload": {
 				"0": {
 					"name": "temp1",
@@ -94,7 +94,7 @@
 			}
 		},
 		"a1": {
-			"topic": "ebusd/bai/WP",
+			"topic": "ebusd entrée n°1/$ù§~ @çê/WP",
 			"payload": {
 				"onoff": {
 					"value": {
@@ -108,7 +108,7 @@
 			}
 		},
 		"a2": {
-			"topic": "ebusd/bai/CirPump",
+			"topic": "ebusd entrée n°1/$ù§~ @çê/CirPump",
 			"payload": {
 				"onoff": {
 					"value": {
@@ -122,7 +122,7 @@
 			}
 		},
 		"a3": {
-			"topic": "ebusd/bai/WPPWMPower",
+			"topic": "ebusd entrée n°1/$ù§~ @çê/WPPWMPower",
 			"payload": {
 				"percent0": {
 					"value": {
@@ -138,7 +138,7 @@
 			}
 		},
 		"a4": {
-			"topic": "ebusd/bai/ModulationTemp",
+			"topic": "ebusd entrée n°1/$ù§~ @çê/ModulationTemp",
 			"payload": {
 				"0": {
 					"name": "",
@@ -153,7 +153,7 @@
 			}
 		},
 		"a5": {
-			"topic": "ebusd/bai/PositionValveSet",
+			"topic": "ebusd entrée n°1/$ù§~ @çê/PositionValveSet",
             "payload": {
                 "func": "nextChoice",
                 "#": "last: index of the last published element (optional)",

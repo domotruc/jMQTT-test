@@ -7,7 +7,7 @@ use MqttGen\MqttGen;
 
 class tFirstEqptTest extends MqttTestCase {
 
-    private const EQPT = 'ebusd';
+    private const EQPT = 'ebusd entrée n°1';
 
     public function testNoEqpt() {
         $this->gotoPluginMngt();
@@ -44,12 +44,14 @@ class tFirstEqptTest extends MqttTestCase {
             $eqptsRef->setIncludeMode($bname, true);
             $eqptsRef->addFromMqttBroker($bname);
             $eqptsRef->add($bname, MqttApiClient::S_CLIENT_ID, true);
+            $this->waitEquipmentInclusion($bname, MqttApiClient::S_CLIENT_ID);
             $eqptsRef->assert(MqttEqpts::API_MQTT, $bname, false);
     
             // First ebusd message
             $eqptsRef->add($bname, self::EQPT, true);
             $msg = $mqttgen[$bname]->nextMessage();
-            $eqptsRef->setCmdFromMsg($bname, self::EQPT, $msg);
+            $cmd = $eqptsRef->setCmdFromMsg($bname, self::EQPT, $msg);
+            $this->assertDivAlertNewCmdMsg(self::EQPT, $cmd->getName());
             $this->waitEquipmentInclusion($bname, self::EQPT);
             $eqptsRef->assert();
     
@@ -63,11 +65,12 @@ class tFirstEqptTest extends MqttTestCase {
             $this->gotoPluginMngt();
             $eqptsRef->assert();
     
-            // // Enable auto command adding and check next message is taken into account
+            // Enable auto command adding and check next message is taken into account
             $this->gotoEqptPage($bname, self::EQPT);
             $eqptsRef->setConfiguration_ui($bname, self::EQPT, MqttEqpts::CONF_AUTO_ADD_CMD, true);
             $msg = $mqttgen[$bname]->nextMessage();
-            $eqptsRef->setCmdFromMsg($bname, self::EQPT, $msg);
+            $cmd = $eqptsRef->setCmdFromMsg($bname, self::EQPT, $msg);
+            $this->assertDivAlertNewCmdMsg(self::EQPT, $cmd->getName());
             $eqptsRef->assert(MqttEqpts::API_MQTT, $bname, false);
     
             // // Back to plugin equipment cards page to disable equipement include mode

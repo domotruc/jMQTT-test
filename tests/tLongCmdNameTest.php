@@ -70,8 +70,8 @@ class tLongCmdNameTest extends MqttTestCase {
         while (($msg = $mqttPlay->nextMessage()) != null) {
             if ($is_first) {
                 $eqptsRef->add($bname, self::EQPT, true);
-                $eqptsRef->setIncludeMode($bname, false); // disabled here to avoid include the jmqtt_test equipment
                 $this->waitEquipmentInclusion($bname, self::EQPT);
+                $eqptsRef->setIncludeMode($bname, false); // disabled here to avoid include the jmqtt_test equipment
                 $eqptsRef->assert();
                 $is_first = false;
             }

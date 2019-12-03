@@ -8,7 +8,6 @@ include_once 'MqttCapture.class.php';
 use Facebook\WebDriver\WebDriverBy as By;
 use Facebook\WebDriver\WebDriverSelect as Select;
 use MqttPlay\MqttPlay;
-use Bluerhinos\phpMQTT;
 
 class tActionsTest extends MqttTestCase {
 
@@ -80,8 +79,8 @@ class tActionsTest extends MqttTestCase {
             }
             $this->assertCount(1, $els);
             
-            // Refresh the page
-            $this->waitElemIsClickable(By::xpath("//a[@data-action='refreshPage']"))->click();
+            // Refresh the eqpt page
+            $this->refreshEqptPage();
             
             // Add all commands
             $is_first = true;
@@ -96,7 +95,7 @@ class tActionsTest extends MqttTestCase {
                 
                 // Check that a confirmation dialog is shown if we ask for refreshing the page before saving
                 if ($is_first) {
-                    $this->waitElemIsClickable(By::xpath("//a[@data-action='refreshPage']"))->click();
+                    $this->refreshEqptPage();
                     $this->clickDialogBoxCancel();
                     // sleep to let the time to the dialog box to disappear. Otherwise we get the error msg that
                     // it obscures the save button

@@ -12,10 +12,12 @@ use Facebook\WebDriver\WebDriverWait;
 use Facebook\WebDriver\Remote\DesiredCapabilities;
 use Facebook\WebDriver\Remote\RemoteWebDriver;
 use Facebook\WebDriver\Remote\RemoteWebElement;
+use Facebook\WebDriver\WebDriverElement;
+use Facebook\WebDriver\Exception\StaleElementReferenceException;
 
 abstract class PluginTestCase extends TestCase {
     
-    private const IMPLICIT_WAIT_DUR = 10;
+    protected const IMPLICIT_WAIT_DUR = 10;
     
     /**
      * @var RemoteWebDriver WebDriver object
@@ -76,7 +78,11 @@ abstract class PluginTestCase extends TestCase {
         return self::$jeedomVersion;
     }
     
-   /**
+    public static function refreshPage() {
+        self::$wd->navigate()->refresh();
+    }
+    
+    /**
     * Load the plugins management page
     */
    public function gotoPluginsMngt() {
@@ -285,6 +291,20 @@ abstract class PluginTestCase extends TestCase {
        $wait = new WebDriverWait(self::$wd, $delay);
        $wait->until(WebDriverExpectedCondition::visibilityOfElementLocated($locator), $message);
        return self::$wd->findElements($locator);
+   }
+   
+   public function waitElemIsStale(WebDriverElement $webElement, int $delay = self::IMPLICIT_WAIT_DUR) {
+       $startTime = microtime(true);
+       try {
+           do {
+               usleep(100000);
+           }
+           while (microtime(true) - $startTime < $delay && $webElement->isDisplayed());
+       }
+       catch (StaleElementReferenceException $e) {
+           return;
+       }
+       throw new \Exception('Web element is still present on the page');
    }
    
    /**

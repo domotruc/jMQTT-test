@@ -1,0 +1,76 @@
+{
+    "misc": {
+        "#": "time interval between each publication",
+        "time_interval": 3,
+        "#": "logging level",
+        "#": "0=notset, 100=debug, 200=info, 300=warning, 40=error",
+        "logging_level": 200,
+        "#": "to log in a file",
+        "#": "if missing or empty string, logs to the console",
+        "logging_file": "/tmp/jsontest.log"
+    },
+    "messages": {
+        "m1": {
+            "topic": "json $£ê n°1/0xd0cf5efffeeaa322",
+            "payload": {
+                "state": {
+                    "func": "randChoice",
+                    "param": [
+                        "OFF",
+                        "ON"
+                    ]
+                },
+                "linkquality": {
+                    "func": "randUniform",
+                    "param": {
+                        "min": 50,
+                        "max": 80,
+                        "precision": 0
+                    }
+                },
+                "brightness": {
+                    "func": "randUniform",
+                    "param": {
+                        "min": 200,
+                        "max": 255,
+                        "precision": 0
+                    }
+                },
+                "color_temp": {
+                    "func": "randUniform",
+                    "param": {
+                        "min": 200,
+                        "max": 255,
+                        "precision": 0
+                    }
+                },
+                "color_mode": {
+                    "func": "randChoice",
+                    "param": [
+                        0,
+                        1,
+                        2
+                    ]
+                },
+                "color": {
+                    "x": {
+                        "func": "randUniform",
+                        "param": {
+                            "min": 0,
+                            "max": 1,
+                            "precision": 2
+                        }
+                    },
+                    "y": {
+                        "func": "randUniform",
+                        "param": {
+                            "min": 0,
+                            "max": 1,
+                            "precision": 2
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
